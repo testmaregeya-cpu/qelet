@@ -115,5 +115,21 @@ describe('offlineQueue service', () => {
     expect(secondResult.syncedCount).toBe(1);
     expect(secondResult.remainingCount).toBe(0);
     expect(isLikelyNetworkError(new TypeError('Network request failed'))).toBe(true);
+    expect(isLikelyNetworkError(new TypeError('fetch failed'))).toBe(true);
+    expect(
+      isLikelyNetworkError(
+        new Error(
+          'java.net.UnknownHostException: Unable to resolve host "ealmdyoxypgmhlpbilwf.supabase.co": No address associated with hostname'
+        )
+      )
+    ).toBe(true);
+    expect(
+      isLikelyNetworkError({
+        message: 'fetch failed',
+        cause: 'java.net.UnknownHostException: Unable to resolve host',
+      })
+    ).toBe(true);
+    // When a network drop occurs, remaining item should not have lastError tagged
+    expect(remaining[0].lastError).toBeUndefined();
   });
 });

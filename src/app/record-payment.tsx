@@ -32,6 +32,10 @@ import {
   enqueueOfflineMutation,
   isLikelyNetworkError,
 } from '../services/offlineQueue';
+import {
+  getCachedHouseholdLedger,
+  getCachedShopDetail,
+} from '../services/offlineStorage';
 import { fetchShops } from '../services/shops';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -65,9 +69,26 @@ export default function RecordPaymentScreen() {
     if (!householdId) return;
     let active = true;
 
+    // Fast-path: pre-hydrate active shops from offline cache immediately
+    void getCachedHouseholdLedger(householdId).then((cached) => {
+      if (cached && active && cached.shops.length > 0) {
+        const activeShops = cached.shops.filter(
+          (s) => !s.archived && s.merged_into_shop_id === null
+        );
+        if (activeShops.length > 0) {
+          setShops(activeShops);
+          if (!initialParamShopId) {
+            setSelectedShopId((prev) => prev || activeShops[0].id);
+          }
+          setLoadingInit(false);
+        }
+      }
+    });
+
     void fetchShops(householdId)
       .then((list) => {
         if (!active) return;
+        setError(null);
         const activeShops = list.filter(
           (s) => !s.archived && s.merged_into_shop_id === null
         );
@@ -78,9 +99,21 @@ export default function RecordPaymentScreen() {
           setSelectedShopId(initialParamShopId);
         }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : 'Failed to load shops');
+        const cached = await getCachedHouseholdLedger(householdId);
+        const hasCachedShops = Boolean(
+          cached && cached.shops.some((s) => !s.archived && s.merged_into_shop_id === null)
+        );
+        if (isLikelyNetworkError(err)) {
+          if (!hasCachedShops) {
+            setError('You are offline. Connect to the internet to load your shops.');
+          } else {
+            setError(null);
+          }
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load shops');
+        }
       })
       .finally(() => {
         if (active) setLoadingInit(false);
@@ -95,14 +128,29 @@ export default function RecordPaymentScreen() {
     if (!selectedShopId) return;
     let active = true;
 
+    // Fast-path: pre-hydrate shop entries from offline cache
+    void getCachedShopDetail(selectedShopId).then((cached) => {
+      if (cached && active) {
+        setShopEntries(cached.entries);
+      }
+    });
+
     void fetchShopEntries(selectedShopId)
       .then((entries) => {
         if (!active) return;
+        setError(null);
         setShopEntries(entries);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : 'Failed to load shop balance');
+        const cached = await getCachedShopDetail(selectedShopId);
+        if (isLikelyNetworkError(err)) {
+          if (cached) {
+            setError(null);
+          }
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load shop balance');
+        }
       });
 
     return () => {

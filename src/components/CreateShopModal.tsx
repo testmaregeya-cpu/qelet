@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
+import { isLikelyNetworkError } from '../services/offlineQueue';
 import { createShop } from '../services/shops';
 import type { Shop } from '../types/phase1';
 
@@ -91,7 +92,11 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
       onClose();
     } catch (err) {
       triggerHaptic('error');
-      setError(err instanceof Error ? err.message : 'Failed to create shop');
+      if (isLikelyNetworkError(err)) {
+        setError('You are offline. Connect to the internet to add a new shop.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to create shop');
+      }
     } finally {
       setSubmitting(false);
     }

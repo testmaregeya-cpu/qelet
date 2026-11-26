@@ -30,7 +30,7 @@ import { triggerHaptic } from '../lib/haptics';
 import { formatEtb } from '../lib/money';
 import { findMember, isSuperAdmin, splitShopsByStatus } from '../lib/shopRules';
 import { rotateInviteCode } from '../services/household';
-import { removeOfflineMutation } from '../services/offlineQueue';
+import { isLikelyNetworkError, removeOfflineMutation } from '../services/offlineQueue';
 import {
   approveShop,
   mergeShops,
@@ -196,7 +196,13 @@ export default function ShopsScreen() {
         await loadAll();
       } catch (err) {
         triggerHaptic('error');
-        setError(err instanceof Error ? err.message : 'Failed to approve shop');
+        setError(
+          isLikelyNetworkError(err)
+            ? 'You are offline. Connect to the internet to approve this shop.'
+            : err instanceof Error
+              ? err.message
+              : 'Failed to approve shop'
+        );
       } finally {
         setMutating(false);
       }
@@ -271,7 +277,13 @@ export default function ShopsScreen() {
       await refreshHousehold();
     } catch (err) {
       triggerHaptic('error');
-      setError(err instanceof Error ? err.message : 'Failed to rotate invite code');
+      setError(
+        isLikelyNetworkError(err)
+          ? 'You are offline. Connect to the internet to rotate invite code.'
+          : err instanceof Error
+            ? err.message
+            : 'Failed to rotate invite code'
+      );
     } finally {
       setMutating(false);
     }
@@ -441,8 +453,19 @@ export default function ShopsScreen() {
               {pendingMutations.length === 1 ? 'entry' : 'entries'} waiting to sync
             </Text>
             {failedPending?.lastError ? (
-              <Text style={[styles.pendingSub, { color: palette.danger }]}>
-                Last attempt: {failedPending.lastError}
+              <Text
+                style={[
+                  styles.pendingSub,
+                  {
+                    color: isLikelyNetworkError(failedPending.lastError)
+                      ? palette.textMuted
+                      : palette.danger,
+                  },
+                ]}
+              >
+                {isLikelyNetworkError(failedPending.lastError)
+                  ? 'Waiting for connection to sync...'
+                  : `Last attempt: ${failedPending.lastError}`}
               </Text>
             ) : null}
           </View>

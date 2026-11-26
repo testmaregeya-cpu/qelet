@@ -32,6 +32,7 @@ export interface LedgerEntry {
   voided_by: string | null;
   voided_at: string | null;
   void_reason: string | null;
+  client_request_id?: string | null;
   entry_lines?: EntryLine[];
 }
 

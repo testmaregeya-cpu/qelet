@@ -47,6 +47,10 @@ import {
   enqueueOfflineMutation,
   isLikelyNetworkError,
 } from '../services/offlineQueue';
+import {
+  getCachedHouseholdLedger,
+  getCachedShopDetail,
+} from '../services/offlineStorage';
 import { fetchShops } from '../services/shops';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
@@ -116,6 +120,22 @@ export default function AddChargeScreen() {
     if (!householdId) return;
     let active = true;
 
+    // Fast-path: pre-hydrate active shops from offline cache immediately
+    void getCachedHouseholdLedger(householdId).then((cached) => {
+      if (cached && active && cached.shops.length > 0) {
+        const activeShops = cached.shops.filter(
+          (s) => !s.archived && s.merged_into_shop_id === null
+        );
+        if (activeShops.length > 0) {
+          setShops(activeShops);
+          if (!initialParamShopId) {
+            setSelectedShopId((prev) => prev || activeShops[0].id);
+          }
+          setLoadingInit(false);
+        }
+      }
+    });
+
     void Promise.all([
       fetchShops(householdId),
       fetchCatalogItems(householdId).catch(() => [] as CatalogItem[]),
@@ -123,6 +143,7 @@ export default function AddChargeScreen() {
     ])
       .then(([list, items, cats]) => {
         if (!active) return;
+        setError(null);
         const activeShops = list.filter(
           (s) => !s.archived && s.merged_into_shop_id === null
         );
@@ -135,9 +156,21 @@ export default function AddChargeScreen() {
           setSelectedShopId(initialParamShopId);
         }
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : 'Failed to load shops');
+        const cached = await getCachedHouseholdLedger(householdId);
+        const hasCachedShops = Boolean(
+          cached && cached.shops.some((s) => !s.archived && s.merged_into_shop_id === null)
+        );
+        if (isLikelyNetworkError(err)) {
+          if (!hasCachedShops) {
+            setError('You are offline. Connect to the internet to load your shops.');
+          } else {
+            setError(null);
+          }
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load shops');
+        }
       })
       .finally(() => {
         if (active) setLoadingInit(false);
@@ -152,18 +185,34 @@ export default function AddChargeScreen() {
     if (!selectedShopId) return;
     let active = true;
 
+    // Fast-path: pre-hydrate shop entries and price memory from offline cache
+    void getCachedShopDetail(selectedShopId).then((cached) => {
+      if (cached && active) {
+        setShopEntries(cached.entries);
+        setPriceMemory(cached.priceMemory);
+      }
+    });
+
     void Promise.all([
       fetchShopEntries(selectedShopId),
       fetchShopPriceMemory(selectedShopId),
     ])
       .then(([entries, memory]) => {
         if (!active) return;
+        setError(null);
         setShopEntries(entries);
         setPriceMemory(memory);
       })
-      .catch((err) => {
+      .catch(async (err) => {
         if (!active) return;
-        setError(err instanceof Error ? err.message : 'Failed to load shop items');
+        const cached = await getCachedShopDetail(selectedShopId);
+        if (isLikelyNetworkError(err)) {
+          if (cached) {
+            setError(null);
+          }
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load shop items');
+        }
       });
 
     return () => {

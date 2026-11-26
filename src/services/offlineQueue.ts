@@ -52,17 +52,43 @@ export function createClientRequestId(): string {
 }
 
 export function isLikelyNetworkError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  if (!err) return false;
+  let full = '';
+  if (typeof err === 'string') {
+    full = err;
+  } else if (err && typeof err === 'object') {
+    const errorObj = err as Record<string, unknown>;
+    const msg = typeof errorObj.message === 'string' ? errorObj.message : '';
+    const cause =
+      errorObj.cause instanceof Error
+        ? errorObj.cause.message
+        : typeof errorObj.cause === 'string'
+        ? errorObj.cause
+        : typeof errorObj.cause === 'object' && errorObj.cause !== null
+        ? JSON.stringify(errorObj.cause)
+        : '';
+    const details = typeof errorObj.details === 'string' ? errorObj.details : '';
+    full = `${msg} ${cause} ${details} ${String(err)}`.toLowerCase();
+  } else {
+    full = String(err).toLowerCase();
+  }
+
   return (
-    msg.includes('network request failed') ||
-    msg.includes('failed to fetch') ||
-    msg.includes('network error') ||
-    msg.includes('timed out') ||
-    msg.includes('timeout') ||
-    msg.includes('econn') ||
-    msg.includes('offline') ||
-    msg.includes('internet') ||
-    msg.includes('unable to resolve host')
+    full.includes('network request failed') ||
+    full.includes('failed to fetch') ||
+    full.includes('fetch failed') ||
+    full.includes('network error') ||
+    full.includes('networkerror') ||
+    full.includes('timed out') ||
+    full.includes('timeout') ||
+    full.includes('econn') ||
+    full.includes('offline') ||
+    full.includes('internet') ||
+    full.includes('unable to resolve host') ||
+    full.includes('unknownhostexception') ||
+    full.includes('no address associated with hostname') ||
+    full.includes('enotfound') ||
+    full.includes('eai_again')
   );
 }
 
@@ -127,12 +153,14 @@ export async function flushOfflineMutations(
       syncedCount += 1;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Sync failed';
-      lastError = msg;
-      errorById.set(item.id, msg);
       if (isLikelyNetworkError(err)) {
-        // Stop draining immediately on offline/network drop so FIFO order is preserved
+        // Network drop or offline: stop draining immediately so FIFO order is preserved.
+        // Do not tag the item with a permanent error because it's just offline.
+        lastError = null;
         break;
       }
+      lastError = msg;
+      errorById.set(item.id, msg);
     }
   }
 
