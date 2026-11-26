@@ -115,8 +115,9 @@ export function subscribeToHouseholdRealtime(
   onSyncEvent: () => void
 ): () => void {
   const supabase = getSupabaseClient();
+  const subId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const channel = supabase
-    .channel(`household:${householdId}`)
+    .channel(`household:${householdId}:${subId}`)
     .on(
       'postgres_changes',
       {

@@ -158,11 +158,18 @@ export function useHouseholdLedger(options?: {
       void loadAll();
     }, 350);
 
-    const unsubHousehold = subscribeToHouseholdRealtime(
-      householdId,
-      debouncedHouseholdReload.trigger
-    );
-    const unsubLedger = subscribeToLedgerRealtime(householdId, debouncedLedgerReload.trigger);
+    let unsubHousehold = () => {};
+    let unsubLedger = () => {};
+
+    try {
+      unsubHousehold = subscribeToHouseholdRealtime(
+        householdId,
+        debouncedHouseholdReload.trigger
+      );
+      unsubLedger = subscribeToLedgerRealtime(householdId, debouncedLedgerReload.trigger);
+    } catch {
+      // Non-fatal if socket/channel initialization error
+    }
 
     return () => {
       active = false;

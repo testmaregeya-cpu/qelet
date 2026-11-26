@@ -150,8 +150,9 @@ export function subscribeToCatalogRealtime(
   onSync: () => void
 ): () => void {
   const supabase = getSupabaseClient();
+  const subId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const channel = supabase
-    .channel(`catalog:${householdId}`)
+    .channel(`catalog:${householdId}:${subId}`)
     .on(
       'postgres_changes',
       {

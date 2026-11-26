@@ -350,8 +350,9 @@ export function subscribeToLedgerRealtime(
   onSyncEvent: () => void
 ): () => void {
   const supabase = getSupabaseClient();
+  const subId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const channel = supabase
-    .channel(`ledger:${householdId}`)
+    .channel(`ledger:${householdId}:${subId}`)
     .on(
       'postgres_changes',
       {

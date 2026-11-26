@@ -139,9 +139,17 @@ export function useShopDetail(householdId: string | null, shopId: string | undef
       if (active) void loadShopDetail();
     }, 350);
 
-    const unsubHouse = subscribeToHouseholdRealtime(householdId, debouncedReload.trigger);
-    const unsubLedger = subscribeToLedgerRealtime(householdId, debouncedReload.trigger);
-    const unsubCat = subscribeToCatalogRealtime(householdId, debouncedReload.trigger);
+    let unsubHouse = () => {};
+    let unsubLedger = () => {};
+    let unsubCat = () => {};
+
+    try {
+      unsubHouse = subscribeToHouseholdRealtime(householdId, debouncedReload.trigger);
+      unsubLedger = subscribeToLedgerRealtime(householdId, debouncedReload.trigger);
+      unsubCat = subscribeToCatalogRealtime(householdId, debouncedReload.trigger);
+    } catch {
+      // Non-fatal if socket/channel initialization error
+    }
 
     return () => {
       active = false;
