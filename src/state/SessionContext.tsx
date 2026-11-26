@@ -62,11 +62,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const syncDevicePreferences = useCallback(
     async (userId: string, householdId: string) => {
-      if (syncedUserRef.current === `${userId}:${householdId}`) {
-        return;
-      }
-      syncedUserRef.current = `${userId}:${householdId}`;
-
       void recordLoginEventSafely();
 
       try {
@@ -74,6 +69,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           fetchUserSettings(userId),
           registerExpoPushTokenSafely(),
         ]);
+
+        const syncKey = `${userId}:${householdId}:${pushToken ?? 'none'}`;
+        if (syncedUserRef.current === syncKey) {
+          return;
+        }
+        syncedUserRef.current = syncKey;
 
         if (existingSettings) {
           await setThemeMode(existingSettings.theme_mode);

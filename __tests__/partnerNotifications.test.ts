@@ -19,7 +19,11 @@ jest.mock('expo-notifications', () => ({
   SchedulableTriggerInputTypes: { DATE: 'date', DAILY: 'daily', TIME_INTERVAL: 'timeInterval' },
 }));
 
-import { buildPartnerNotificationPayload } from '../src/services/notifications';
+import {
+  buildPartnerNotificationPayload,
+  registerExpoPushTokenDetailed,
+  registerExpoPushTokenSafely,
+} from '../src/services/notifications';
 
 describe('buildPartnerNotificationPayload', () => {
   it('formats ETB charge notification copy correctly', () => {
@@ -54,5 +58,14 @@ describe('buildPartnerNotificationPayload', () => {
       totalSantim: 0,
     });
     expect(payload.body).toBe('Partner recorded a payment of 0 ETB.');
+  });
+
+  it('registers push token detailed successfully with fallback project ID', async () => {
+    const res = await registerExpoPushTokenDetailed();
+    expect(res.status).toBe('granted');
+    expect(res.token).toBe('ExponentPushToken[mock]');
+
+    const safeToken = await registerExpoPushTokenSafely();
+    expect(safeToken).toBe('ExponentPushToken[mock]');
   });
 });

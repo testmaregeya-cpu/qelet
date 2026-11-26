@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '../components/AppBottomNav';
+import { LiveUpdateManager } from '../components/LiveUpdateManager';
 import { isSuperAdmin } from '../lib/shopRules';
 import {
   type AppLockConfig,
@@ -29,8 +30,9 @@ import { checkIsPlatformAdmin, isPlatformAdminEmail } from '../services/platform
 import { rotateInviteCode } from '../services/household';
 import {
   fetchUserSettings,
-  registerExpoPushTokenSafely,
+  registerExpoPushTokenDetailed,
   sendTestLocalNotification,
+  sendTestPartnerPush,
   syncDailyLocalReminder,
   upsertUserSettings,
 } from '../services/notifications';
@@ -193,19 +195,41 @@ export default function SettingsScreen() {
   const handleRefreshPushToken = async () => {
     setBusy(true);
     setError(null);
+    setStatusMessage(null);
     try {
-      const token = await registerExpoPushTokenSafely();
-      if (!token) {
-        setStatusMessage(
-          'Push notifications require permission on a physical Android phone.'
-        );
+      const reg = await registerExpoPushTokenDetailed();
+      if (reg.token) {
+        await upsertUserSettings({ userId, householdId, expo_push_token: reg.token });
+        setPushToken(reg.token);
+        setStatusMessage('Push token successfully registered with device!');
+      } else if (reg.status === 'denied') {
+        setError('Notification permission denied. Please allow notifications in Android App Settings.');
+      } else if (reg.status === 'simulator') {
+        setStatusMessage('Push notifications require a physical device.');
       } else {
-        await upsertUserSettings({ userId, householdId, expo_push_token: token });
-        setPushToken(token);
-        setStatusMessage('Push token registered.');
+        setError(`Push registration error: ${reg.errorMessage ?? 'Unknown error'}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Push registration failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSendTestPartnerPush = async () => {
+    if (!householdId) return;
+    setBusy(true);
+    setError(null);
+    setStatusMessage(null);
+    try {
+      const res = await sendTestPartnerPush(householdId);
+      if (res.sent > 0) {
+        setStatusMessage(`Sent test push alert to ${res.sent} partner device(s)!`);
+      } else {
+        setStatusMessage(`No partner device received the alert (${res.reason ?? 'check partner settings'}).`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send test partner push');
     } finally {
       setBusy(false);
     }
@@ -423,48 +447,114 @@ export default function SettingsScreen() {
               />
             </View>
 
-            <View style={[styles.row, styles.dividedRow, { borderTopColor: palette.border }]}>
-              <Pressable
-                style={[
-                  styles.secondaryBtn,
-                  {
-                    flex: 1,
-                    borderColor: palette.borderStrong,
-                    backgroundColor: palette.background,
-                  },
-                ]}
-                onPress={() =>
-                  void sendTestLocalNotification(
-                    'Qelet reminder',
-                    'Did you take anything on credit today?'
-                  ).then((ok) =>
-                    setStatusMessage(
-                      ok
-                        ? 'Test reminder scheduled for ~2 seconds.'
-                        : 'Notification permission denied.'
+            <View style={[styles.dividedRow, { borderTopColor: palette.border, paddingTop: Space.s12, gap: Space.s8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={[styles.rowTitle, { color: palette.textPrimary }]}>Device Push Alerts</Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: Radius.pill,
+                    backgroundColor: pushToken ? palette.primaryLight : palette.dangerLight,
+                  }}
+                >
+                  <Feather
+                    name={pushToken ? 'check-circle' : 'alert-circle'}
+                    size={12}
+                    color={pushToken ? palette.primary : palette.danger}
+                  />
+                  <Text
+                    style={{
+                      fontFamily: Fonts.sansMedium,
+                      fontSize: 11,
+                      color: pushToken ? palette.primary : palette.danger,
+                    }}
+                  >
+                    {pushToken ? 'Active' : 'Not Registered'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.rowSub, { color: palette.textMuted }]}>
+                {pushToken
+                  ? `Registered: ${pushToken.slice(0, 20)}...`
+                  : 'Register this phone to receive instant alerts when your partner adds entries.'}
+              </Text>
+
+              <View style={[styles.row, { gap: Space.s8, marginTop: Space.s4 }]}>
+                <Pressable
+                  style={[
+                    styles.secondaryBtn,
+                    {
+                      flex: 1,
+                      borderColor: palette.borderStrong,
+                      backgroundColor: palette.background,
+                    },
+                  ]}
+                  onPress={() =>
+                    void sendTestLocalNotification(
+                      'Qelet reminder',
+                      'Did you take anything on credit today?'
+                    ).then((ok) =>
+                      setStatusMessage(
+                        ok
+                          ? 'Test reminder scheduled for ~2 seconds.'
+                          : 'Notification permission denied.'
+                      )
                     )
-                  )
-                }
-              >
-                <Feather name="bell" size={14} color={palette.primary} />
-                <Text style={[styles.secondaryBtnText, { color: palette.primary }]}>
-                  Send test alert
-                </Text>
-              </Pressable>
+                  }
+                >
+                  <Feather name="bell" size={13} color={palette.primary} />
+                  <Text style={[styles.secondaryBtnText, { color: palette.primary, fontSize: 12 }]}>
+                    Test local
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.secondaryBtn,
+                    {
+                      flex: 1,
+                      borderColor: palette.borderStrong,
+                      backgroundColor: palette.background,
+                    },
+                  ]}
+                  disabled={busy}
+                  onPress={() => void handleSendTestPartnerPush()}
+                >
+                  <Feather name="send" size={13} color={palette.primary} />
+                  <Text style={[styles.secondaryBtnText, { color: palette.primary, fontSize: 12 }]}>
+                    Test partner
+                  </Text>
+                </Pressable>
+              </View>
+
               <Pressable
                 style={[
                   styles.secondaryBtn,
                   {
-                    flex: 1,
-                    borderColor: palette.borderStrong,
-                    backgroundColor: palette.background,
+                    borderColor: pushToken ? palette.borderStrong : palette.primary,
+                    backgroundColor: pushToken ? palette.background : palette.primaryLight,
+                    marginTop: Space.s4,
                   },
                 ]}
                 disabled={busy}
                 onPress={() => void handleRefreshPushToken()}
               >
-                <Text style={[styles.secondaryBtnText, { color: palette.textPrimary }]}>
-                  {pushToken ? 'Push active' : 'Register push'}
+                <Feather
+                  name={pushToken ? 'refresh-cw' : 'shield'}
+                  size={13}
+                  color={pushToken ? palette.textSecondary : palette.primary}
+                />
+                <Text
+                  style={[
+                    styles.secondaryBtnText,
+                    { color: pushToken ? palette.textPrimary : palette.primary, fontSize: 12 },
+                  ]}
+                >
+                  {pushToken ? 'Re-sync push token' : 'Register push on this phone'}
                 </Text>
               </Pressable>
             </View>
@@ -579,6 +669,21 @@ export default function SettingsScreen() {
                 </Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+
+        {/* System & Live Updates */}
+        <View style={styles.sectionBlock}>
+          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
+            System & live updates
+          </Text>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: palette.surface, borderColor: palette.border },
+            ]}
+          >
+            <LiveUpdateManager />
           </View>
         </View>
 

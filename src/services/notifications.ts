@@ -8,11 +8,13 @@ import { getAddisAbabaDateString, shiftCalendarDays } from '../domain/billing';
 import { getSupabaseClient } from '../lib/supabase';
 import type { ThemeMode, UserSettings } from '../types/phase4to6';
 
+const DEFAULT_NOTIFICATION_CHANNEL_ID = 'default';
 const DAILY_REMINDER_CHANNEL_ID = 'qelet-reminders';
 const DAILY_REMINDER_KIND = 'daily_evening_prompt';
 const REMINDER_PREFS_CACHE_KEY = 'qelet_daily_reminder_prefs_v1';
 const LAST_LOGGED_DATE_KEY = 'qelet_last_logged_date_v1';
 const ADDIS_OFFSET_MS = 3 * 60 * 60 * 1000;
+const FALLBACK_EAS_PROJECT_ID = 'bb69d992-7e15-4cbd-a40f-dcd7224511f4';
 
 let handlerConfigured = false;
 
@@ -53,8 +55,15 @@ export function configureNotifications(): void {
   });
 }
 
-async function ensureAndroidChannel(): Promise<void> {
+export async function ensureAndroidChannels(): Promise<void> {
   if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(DEFAULT_NOTIFICATION_CHANNEL_ID, {
+      name: 'Default',
+      importance: AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#146C43',
+      sound: 'default',
+    });
     await Notifications.setNotificationChannelAsync(DAILY_REMINDER_CHANNEL_ID, {
       name: 'Qelet Credit Reminders',
       importance: AndroidImportance.HIGH,
@@ -65,7 +74,7 @@ async function ensureAndroidChannel(): Promise<void> {
 }
 
 export async function requestNotificationPermission(): Promise<boolean> {
-  await ensureAndroidChannel();
+  await ensureAndroidChannels();
   const { status: existing } = await Notifications.getPermissionsAsync();
   if (existing === 'granted') {
     return true;
@@ -221,27 +230,65 @@ export async function sendTestLocalNotification(title: string, body: string): Pr
   return true;
 }
 
-export async function registerExpoPushTokenSafely(): Promise<string | null> {
-  if (!Device.isDevice) {
-    return null;
-  }
-  const granted = await requestNotificationPermission();
-  if (!granted) {
-    return null;
-  }
+export interface PushRegistrationResult {
+  token: string | null;
+  status: 'granted' | 'denied' | 'simulator' | 'error';
+  errorMessage?: string;
+}
 
-  const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+export async function registerExpoPushTokenDetailed(): Promise<PushRegistrationResult> {
+  if (!Device.isDevice) {
+    return { token: null, status: 'simulator', errorMessage: 'Physical device required for push notifications' };
+  }
 
   try {
-    const tokenRes = projectId
-      ? await Notifications.getExpoPushTokenAsync({ projectId })
-      : await Notifications.getExpoPushTokenAsync();
-    return tokenRes.data ?? null;
-  } catch {
-    // Gracefully ignore in Expo Go or unlinked EAS dev environments
-    return null;
+    await ensureAndroidChannels();
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+    if (existing !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      return { token: null, status: 'denied', errorMessage: 'Notification permission not granted' };
+    }
+
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      Constants.easConfig?.projectId ??
+      FALLBACK_EAS_PROJECT_ID;
+
+    const tokenRes = await Notifications.getExpoPushTokenAsync({ projectId });
+    return { token: tokenRes.data ?? null, status: 'granted' };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('Push token registration error:', msg);
+    return { token: null, status: 'error', errorMessage: msg };
   }
+}
+
+export async function registerExpoPushTokenSafely(): Promise<string | null> {
+  const result = await registerExpoPushTokenDetailed();
+  return result.token;
+}
+
+export async function sendTestPartnerPush(householdId: string): Promise<{ sent: number; reason?: string }> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.functions.invoke('notify-partner', {
+    body: {
+      householdId,
+      shopId: '00000000-0000-0000-0000-000000000000',
+      shopName: 'Test Alert',
+      type: 'charge',
+      totalSantim: 10000,
+      actorName: 'Partner Alert Test',
+    },
+  });
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data as { sent: number; reason?: string };
 }
 
 export async function fetchUserSettings(userId: string): Promise<UserSettings | null> {

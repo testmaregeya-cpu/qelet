@@ -137,8 +137,11 @@ Deno.serve(async (req: Request) => {
       s.user_id !== actorUserId &&
       s.partner_alerts === true &&
       typeof s.expo_push_token === 'string' &&
-      s.expo_push_token.startsWith('ExponentPushToken[')
+      (s.expo_push_token.startsWith('ExponentPushToken[') ||
+        s.expo_push_token.startsWith('ExpoPushToken['))
   );
+
+  console.log(`[notify-partner] Found ${pushTargets.length} push target(s) for household ${householdId}`);
 
   if (pushTargets.length === 0) {
     return new Response(JSON.stringify({ sent: 0, reason: 'No active partner push tokens' }), {
@@ -152,17 +155,28 @@ Deno.serve(async (req: Request) => {
     sound: 'default',
     title,
     body,
+    channelId: 'default',
+    priority: 'high',
     data: { entryId, shopId, href: '/shops' },
   }));
 
+  console.log('[notify-partner] Dispatching messages to Expo push service:', JSON.stringify(messages));
+
   const expoResp = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Encoding': 'gzip, deflate',
+    },
     body: JSON.stringify(messages),
   });
 
+  const responseText = await expoResp.text();
+  console.log(`[notify-partner] Expo push API responded (${expoResp.status}):`, responseText);
+
   return new Response(
-    JSON.stringify({ sent: messages.length, status: expoResp.status }),
+    JSON.stringify({ sent: messages.length, status: expoResp.status, details: responseText }),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
