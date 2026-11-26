@@ -25,7 +25,7 @@ import {
   setAppLockPreferences,
 } from '../services/appLock';
 import { signOutAll } from '../services/auth';
-import { checkIsPlatformAdmin } from '../services/platformAdmin';
+import { checkIsPlatformAdmin, isPlatformAdminEmail } from '../services/platformAdmin';
 import { rotateInviteCode } from '../services/household';
 import {
   fetchUserSettings,
@@ -665,7 +665,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Global Platform Super Admin Entry */}
-        {isPlatformAdmin ? (
+        {isPlatformAdmin && isPlatformAdminEmail(session?.user?.email) ? (
           <View style={styles.sectionBlock}>
             <Text style={[styles.sectionTitle, { color: palette.primary }]}>
               Global Administration

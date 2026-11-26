@@ -12,7 +12,7 @@ import { Stack, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppLockGate } from '../components/AppLockGate';
 import { configureNotifications } from '../services/notifications';
@@ -115,3 +115,49 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={layoutStyles.centeredError}>
+      <Feather name="alert-circle" size={40} color="#B42318" style={{ marginBottom: 12 }} />
+      <Text style={layoutStyles.errorTitle}>Something went wrong</Text>
+      <Text style={layoutStyles.errorMsg}>{error?.message || 'Unexpected application error'}</Text>
+      <Pressable style={layoutStyles.retryBtn} onPress={retry}>
+        <Text style={layoutStyles.retryText}>Reload App</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const layoutStyles = StyleSheet.create({
+  centeredError: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: '#F7F4EE',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1F1B16',
+    marginBottom: 8,
+  },
+  errorMsg: {
+    fontSize: 14,
+    color: '#5E554A',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryBtn: {
+    backgroundColor: '#146C43',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+});

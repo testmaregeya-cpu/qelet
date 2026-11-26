@@ -564,7 +564,15 @@ export default function ShopsScreen() {
                   },
                 ]}
               >
-                <Pressable style={styles.dashLeft} onPress={() => openShopDetail(shop)}>
+                <Pressable
+                  style={styles.dashLeft}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${shop.name}, balance ${formatEtb(summary.balanceSantim)}`}
+                  onPress={() => {
+                    triggerHaptic('selection');
+                    setQuickActionShop(shop);
+                  }}
+                >
                   <Text style={[styles.dashName, { color: palette.textPrimary }]} numberOfLines={1}>
                     {shop.name}
                   </Text>
@@ -615,7 +623,12 @@ export default function ShopsScreen() {
                     borderBottomColor: palette.border,
                   },
                 ]}
-                onPress={() => openShopDetail(shop)}
+                accessibilityRole="button"
+                accessibilityLabel={`${shop.name}, balance ${formatEtb(summary.balanceSantim)}`}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setQuickActionShop(shop);
+                }}
               >
                 <Text style={[styles.rankNum, { color: palette.textMuted }]}>
                   {String(index + 1).padStart(2, '0')}

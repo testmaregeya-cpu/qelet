@@ -4,7 +4,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { Fonts, Radius, Space } from '../theme/tokens';
 import type { ShopStatusBadge } from '../types/phase2';
 
-const LABEL_BY_STATUS: Record<ShopStatusBadge, string> = {
+const LABEL_BY_STATUS: Record<string, string> = {
   PAID: 'Paid',
   OPEN: 'Open',
   'DUE SOON': 'Due soon',
@@ -12,7 +12,7 @@ const LABEL_BY_STATUS: Record<ShopStatusBadge, string> = {
   OVERDUE: 'Overdue',
 };
 
-export function StatusBadge({ status }: { status: ShopStatusBadge }) {
+export function StatusBadge({ status }: { status?: ShopStatusBadge | string | null }) {
   const { palette } = useTheme();
 
   const colors = (() => {
@@ -20,20 +20,24 @@ export function StatusBadge({ status }: { status: ShopStatusBadge }) {
       case 'PAID':
         return { bg: palette.primaryLight, text: palette.primary };
       case 'OPEN':
-        return { bg: palette.openBg, text: palette.openText };
+        return { bg: palette.openBg ?? palette.surfaceMuted, text: palette.openText ?? palette.textSecondary };
       case 'DUE SOON':
         return { bg: palette.amberLight, text: palette.amber };
       case 'DUE NOW':
         return { bg: palette.orangeLight, text: palette.orange };
       case 'OVERDUE':
         return { bg: palette.dangerLight, text: palette.danger };
+      default:
+        return { bg: palette.surfaceMuted, text: palette.textSecondary };
     }
   })();
+
+  const label = (status && LABEL_BY_STATUS[status]) || status || 'Open';
 
   return (
     <View style={[styles.badge, { backgroundColor: colors.bg }]}>
       <View style={[styles.dot, { backgroundColor: colors.text }]} />
-      <Text style={[styles.text, { color: colors.text }]}>{LABEL_BY_STATUS[status]}</Text>
+      <Text style={[styles.text, { color: colors.text }]}>{label}</Text>
     </View>
   );
 }

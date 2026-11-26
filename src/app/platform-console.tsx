@@ -15,11 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
+import { useSession } from '../state/SessionContext';
 import { Space, Radius, Fonts } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
 import { formatEtb } from '../lib/money';
 import {
   checkIsPlatformAdmin,
+  isPlatformAdminEmail,
   fetchPlatformMetrics,
   fetchPlatformUsers,
   fetchPlatformHouseholds,
@@ -32,6 +34,8 @@ import {
 
 export default function PlatformConsoleScreen() {
   const { palette } = useTheme();
+  const { session } = useSession();
+  const userEmail = session?.user?.email;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,68 +56,109 @@ export default function PlatformConsoleScreen() {
   const loadData = useCallback(async () => {
     try {
       const admin = await checkIsPlatformAdmin();
-      setIsAdmin(admin);
+      const authorized = Boolean(admin && isPlatformAdminEmail(userEmail));
+      setIsAdmin(authorized);
 
-      if (!admin) {
+      if (!authorized) {
         setLoading(false);
         return;
       }
 
-      const [m, u, h] = await Promise.all([
+      const [mRes, uRes, hRes] = await Promise.allSettled([
         fetchPlatformMetrics(),
         fetchPlatformUsers(),
         fetchPlatformHouseholds(),
       ]);
 
-      setMetrics(m);
-      setUsers(u);
-      setHouseholds(h);
-      setError(null);
+      if (mRes.status === 'fulfilled') {
+        setMetrics(mRes.value);
+      }
+      if (uRes.status === 'fulfilled') {
+        setUsers(uRes.value);
+      }
+      if (hRes.status === 'fulfilled') {
+        setHouseholds(hRes.value);
+      }
+
+      const rejections = [mRes, uRes, hRes].filter(
+        (r): r is PromiseRejectedResult => r.status === 'rejected'
+      );
+      if (rejections.length > 0) {
+        setError(
+          rejections[0].reason instanceof Error
+            ? rejections[0].reason.message
+            : 'Some platform data could not be loaded'
+        );
+      } else {
+        setError(null);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load platform data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [userEmail]);
 
   useEffect(() => {
     let active = true;
-    checkIsPlatformAdmin()
-      .then((admin) => {
+
+    void (async () => {
+      try {
+        const admin = await checkIsPlatformAdmin();
+        const authorized = Boolean(admin && isPlatformAdminEmail(userEmail));
         if (!active) return;
-        setIsAdmin(admin);
-        if (!admin) {
+        setIsAdmin(authorized);
+
+        if (!authorized) {
           setLoading(false);
           return;
         }
-        return Promise.all([
+
+        const [mRes, uRes, hRes] = await Promise.allSettled([
           fetchPlatformMetrics(),
           fetchPlatformUsers(),
           fetchPlatformHouseholds(),
-        ]).then(([m, u, h]) => {
-          if (!active) return;
-          setMetrics(m);
-          setUsers(u);
-          setHouseholds(h);
+        ]);
+        if (!active) return;
+
+        if (mRes.status === 'fulfilled') {
+          setMetrics(mRes.value);
+        }
+        if (uRes.status === 'fulfilled') {
+          setUsers(uRes.value);
+        }
+        if (hRes.status === 'fulfilled') {
+          setHouseholds(hRes.value);
+        }
+
+        const rejections = [mRes, uRes, hRes].filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected'
+        );
+        if (rejections.length > 0) {
+          setError(
+            rejections[0].reason instanceof Error
+              ? rejections[0].reason.message
+              : 'Some platform data could not be loaded'
+          );
+        } else {
           setError(null);
-        });
-      })
-      .catch((err) => {
+        }
+      } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : 'Failed to load platform data');
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setLoading(false);
           setRefreshing(false);
         }
-      });
+      }
+    })();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [userEmail]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

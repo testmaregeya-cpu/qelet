@@ -198,7 +198,7 @@ BEGIN
     (SELECT count(*) FROM public.members m WHERE m.household_id = h.id) AS member_count,
     (SELECT count(*) FROM public.shops s WHERE s.household_id = h.id AND s.archived = false) AS shop_count,
     (
-      SELECT coalesce(sum(CASE WHEN e.type = 'charge' THEN e.total_amount_santim ELSE -e.total_amount_santim END), 0)
+      SELECT coalesce(sum(CASE WHEN e.type = 'charge' THEN e.total_amount_santim ELSE -e.total_amount_santim END), 0)::BIGINT
       FROM public.entries e
       WHERE e.household_id = h.id AND e.voided = false
     ) AS total_balance_santim

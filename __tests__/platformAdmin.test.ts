@@ -1,5 +1,6 @@
 import {
   checkIsPlatformAdmin,
+  isPlatformAdminEmail,
   fetchPlatformMetrics,
   fetchPlatformUsers,
   fetchPlatformHouseholds,
@@ -18,6 +19,15 @@ jest.mock('../src/lib/supabase', () => ({
 describe('platformAdmin service', () => {
   beforeEach(() => {
     mockRpc.mockReset();
+  });
+
+  it('isPlatformAdminEmail validates only authorized admins', () => {
+    expect(isPlatformAdminEmail('tensaylemessa@gmail.com')).toBe(true);
+    expect(isPlatformAdminEmail('TENSAYLEMESSA@GMAIL.COM')).toBe(true);
+    expect(isPlatformAdminEmail('testmaregeyaa@gmail.com')).toBe(true);
+    expect(isPlatformAdminEmail('other@example.com')).toBe(false);
+    expect(isPlatformAdminEmail(null)).toBe(false);
+    expect(isPlatformAdminEmail(undefined)).toBe(false);
   });
 
   it('checkIsPlatformAdmin returns boolean from RPC', async () => {

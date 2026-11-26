@@ -12,8 +12,14 @@ jest.mock('expo-router', () => ({
 jest.mock('../src/lib/haptics', () => ({
   triggerHaptic: jest.fn(),
 }));
+jest.mock('../src/state/SessionContext', () => ({
+  useSession: () => ({
+    session: { user: { email: 'tensaylemessa@gmail.com' } },
+  }),
+}));
 jest.mock('../src/services/platformAdmin', () => ({
   checkIsPlatformAdmin: jest.fn().mockResolvedValue(true),
+  isPlatformAdminEmail: jest.fn().mockReturnValue(true),
   fetchPlatformMetrics: jest.fn().mockResolvedValue({
     total_households: 4,
     total_users: 6,

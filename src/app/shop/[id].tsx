@@ -813,3 +813,36 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  const { palette } = useTheme();
+  return (
+    <SafeAreaView style={[styles.centered, { backgroundColor: palette.background, padding: Space.s24 }]}>
+      <Feather name="alert-triangle" size={36} color={palette.danger} style={{ marginBottom: Space.s16 }} />
+      <Text style={[styles.balanceBig, { color: palette.textPrimary, fontSize: 20, textAlign: 'center', marginBottom: Space.s8 }]}>
+        Shop Ledger Unavailable
+      </Text>
+      <Text style={[styles.emptyText, { color: palette.textSecondary, marginBottom: Space.s24 }]}>
+        {error?.message || 'Could not load shop ledger statement.'}
+      </Text>
+      <Pressable
+        style={({ pressed }) => [
+          styles.primaryBtn,
+          { backgroundColor: palette.primaryButtonBg, width: '100%', height: 44, opacity: pressed ? 0.9 : 1 },
+        ]}
+        onPress={retry}
+      >
+        <Text style={[styles.primaryBtnText, { color: palette.primaryButtonText }]}>Retry</Text>
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [
+          styles.secondaryBtn,
+          { borderColor: palette.border, width: '100%', height: 44, marginTop: Space.s12, opacity: pressed ? 0.85 : 1 },
+        ]}
+        onPress={() => router.replace('/shops')}
+      >
+        <Text style={[styles.secondaryBtnText, { color: palette.textPrimary }]}>Back to Ledger</Text>
+      </Pressable>
+    </SafeAreaView>
+  );
+}

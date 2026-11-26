@@ -1,5 +1,15 @@
 import { getSupabaseClient } from '../lib/supabase';
 
+export const PLATFORM_SUPER_ADMIN_EMAILS = [
+  'tensaylemessa@gmail.com',
+  'testmaregeyaa@gmail.com',
+] as const;
+
+export function isPlatformAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return (PLATFORM_SUPER_ADMIN_EMAILS as readonly string[]).includes(email.trim().toLowerCase());
+}
+
 export interface PlatformMetrics {
   total_households: number;
   total_users: number;
