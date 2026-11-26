@@ -22,9 +22,7 @@ import { CreateShopModal } from '../components/CreateShopModal';
 import { ShopManageModal } from '../components/ShopManageModal';
 import { ShopQuickActionsModal } from '../components/ShopQuickActionsModal';
 import { ShopRow } from '../components/ShopRow';
-import { StatusBadge } from '../components/StatusBadge';
 import { calculateShopLedgerSummary, getAddisAbabaDateString } from '../domain/billing';
-import { buildTopBalanceShops, buildUpcomingAndDueShops } from '../domain/dashboard';
 import { useHouseholdLedger } from '../hooks/useHouseholdLedger';
 import { triggerHaptic } from '../lib/haptics';
 import { formatEtb } from '../lib/money';
@@ -52,7 +50,6 @@ export default function ShopsScreen() {
     shops,
     entries,
     disputes,
-    priceMemory,
     pendingMutations,
     loadingData: loadingShops,
     refreshing,
@@ -92,16 +89,6 @@ export default function ShopsScreen() {
     return map;
   }, [shops, entries, todayDate]);
 
-  const upcomingAndDue = useMemo(
-    () => buildUpcomingAndDueShops(shops, summariesByShop),
-    [shops, summariesByShop]
-  );
-
-  const topBalances = useMemo(
-    () => buildTopBalanceShops(shops, summariesByShop, 3),
-    [shops, summariesByShop]
-  );
-
   const openDisputesByShop = useMemo(() => {
     const entryToShop = new Map<string, string>();
     for (const entry of entries) {
@@ -117,6 +104,34 @@ export default function ShopsScreen() {
     }
     return counts;
   }, [entries, disputes]);
+
+  const filterCounts = useMemo(() => {
+    let unpaid = 0;
+    let due = 0;
+    let disputed = 0;
+    for (const shop of grouped.activeApproved) {
+      const summary = summariesByShop.get(shop.id);
+      if (summary && summary.balanceSantim > 0) {
+        unpaid += 1;
+        if (
+          summary.status === 'OVERDUE' ||
+          summary.status === 'DUE NOW' ||
+          summary.status === 'DUE SOON'
+        ) {
+          due += 1;
+        }
+      }
+      if ((openDisputesByShop.get(shop.id) ?? 0) > 0) {
+        disputed += 1;
+      }
+    }
+    return {
+      all: grouped.activeApproved.length,
+      unpaid,
+      due,
+      disputed,
+    };
+  }, [grouped.activeApproved, summariesByShop, openDisputesByShop]);
 
   const filteredApprovedShops = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -156,24 +171,6 @@ export default function ShopsScreen() {
     return total;
   }, [shops, summariesByShop]);
 
-  const activeShopMap = useMemo(() => {
-    const map = new Map<string, Shop>();
-    for (const s of shops) {
-      if (!s.archived && s.merged_into_shop_id === null) {
-        map.set(s.id, s);
-      }
-    }
-    return map;
-  }, [shops]);
-
-  const quickMemoryButtons = useMemo(
-    () =>
-      priceMemory
-        .filter((m) => m.last_unit_price_santim > 0 && activeShopMap.has(m.shop_id))
-        .slice(0, 6),
-    [priceMemory, activeShopMap]
-  );
-
   const openShopDetail = useCallback((shop: Shop) => {
     router.push({ pathname: '/shop/[id]', params: { id: shop.id } });
   }, []);
@@ -209,9 +206,6 @@ export default function ShopsScreen() {
     },
     [loadAll, setError]
   );
-
-  const activeShopsExist =
-    grouped.needsReview.length + grouped.activeApproved.length > 0;
 
   const members = useMemo(
     () => householdContext?.members ?? [],
@@ -302,25 +296,46 @@ export default function ShopsScreen() {
           </Text>
         </View>
 
-        <View
-          style={[
-            styles.memberChip,
-            { backgroundColor: palette.surfaceMuted },
-          ]}
-        >
+        <View style={styles.topActionsRow}>
           <View
             style={[
-              styles.memberDot,
-              { backgroundColor: currentMember.avatar_color ?? palette.primary },
+              styles.memberChip,
+              { backgroundColor: palette.surfaceMuted },
             ]}
-          />
-          <Text style={[styles.memberChipText, { color: palette.textSecondary }]}>
-            {currentMember.display_name}
-          </Text>
+          >
+            <View
+              style={[
+                styles.memberDot,
+                { backgroundColor: currentMember.avatar_color ?? palette.primary },
+              ]}
+            />
+            <Text style={[styles.memberChipText, { color: palette.textSecondary }]}>
+              {currentMember.display_name}
+            </Text>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.topAddShopBtn,
+              { backgroundColor: palette.primary },
+              pressed && { opacity: 0.85 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Add new shop"
+            onPress={() => {
+              triggerHaptic('selection');
+              setShowCreateShopModal(true);
+            }}
+          >
+            <Feather name="plus" size={14} color={palette.accentButtonText} />
+            <Text style={[styles.topAddShopText, { color: palette.accentButtonText }]}>
+              Add shop
+            </Text>
+          </Pressable>
         </View>
       </View>
 
-      {/* Focal Moment: Household Balance Sheet + Payday Window */}
+      {/* Household Balance Card */}
       <View
         style={[
           styles.ledgerCard,
@@ -347,52 +362,6 @@ export default function ShopsScreen() {
         </View>
 
         <PaydayWindowBar todayDate={todayDate} />
-
-        <View style={styles.quickActionRow}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryActionBtn,
-              { backgroundColor: palette.primaryButtonBg },
-              !activeShopsExist && styles.disabled,
-              pressed && { opacity: 0.9 },
-            ]}
-            disabled={!activeShopsExist}
-            accessibilityRole="button"
-            accessibilityLabel="Add credit charge"
-            onPress={() => {
-              triggerHaptic('selection');
-              router.push('/add-charge');
-            }}
-          >
-            <Feather name="plus" size={16} color={palette.primaryButtonText} />
-            <Text style={[styles.primaryActionText, { color: palette.primaryButtonText }]}>
-              Add charge
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryActionBtn,
-              {
-                backgroundColor: palette.surfaceMuted,
-              },
-              !activeShopsExist && styles.disabled,
-              pressed && { opacity: 0.85 },
-            ]}
-            disabled={!activeShopsExist}
-            accessibilityRole="button"
-            accessibilityLabel="Record payment"
-            onPress={() => {
-              triggerHaptic('selection');
-              router.push('/record-payment');
-            }}
-          >
-            <Feather name="check" size={16} color={palette.textPrimary} />
-            <Text style={[styles.secondaryActionText, { color: palette.textPrimary }]}>
-              Record payment
-            </Text>
-          </Pressable>
-        </View>
 
         {!partner ? (
           <View
@@ -504,172 +473,6 @@ export default function ShopsScreen() {
         </View>
       ) : null}
 
-      {/* Quick-Add From Remembered Prices */}
-      {quickMemoryButtons.length > 0 ? (
-        <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>Quick add</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickStrip}
-          >
-            {quickMemoryButtons.map((mem) => {
-              const shopName = activeShopMap.get(mem.shop_id)?.name ?? 'Shop';
-              return (
-                <Pressable
-                  key={`${mem.shop_id}:${mem.item_key}`}
-                  style={({ pressed }) => [
-                    styles.quickChip,
-                    {
-                      backgroundColor: palette.surface,
-                      borderColor: palette.border,
-                    },
-                    pressed && { opacity: 0.8 },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Quick add ${mem.item_name} at ${shopName}`}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/add-charge',
-                      params: {
-                        shopId: mem.shop_id,
-                        presetItemName: mem.item_name,
-                        presetUnit: mem.last_unit,
-                        presetPriceSantim: String(mem.last_unit_price_santim),
-                      },
-                    })
-                  }
-                >
-                  <View style={styles.quickChipTop}>
-                    <Text style={[styles.quickChipTitle, { color: palette.textPrimary }]}>
-                      {mem.item_name}
-                    </Text>
-                    <Text style={[styles.quickChipPrice, { color: palette.primary }]}>
-                      {formatEtb(mem.last_unit_price_santim)}
-                    </Text>
-                  </View>
-                  <Text style={[styles.quickChipSub, { color: palette.textMuted }]}>{shopName}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
-
-      {/* Upcoming & Due */}
-      <View style={styles.sectionBlock}>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
-            Upcoming & due
-          </Text>
-          <Text style={[styles.sectionMeta, { color: palette.textMuted }]}>Days 24–26</Text>
-        </View>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: palette.surface, borderColor: palette.border },
-          ]}
-        >
-          {upcomingAndDue.length === 0 ? (
-            <Text style={[styles.mutedText, { color: palette.textMuted }]}>
-              No overdue or due-soon balances right now.
-            </Text>
-          ) : (
-            upcomingAndDue.map(({ shop, summary }, idx) => (
-              <View
-                key={shop.id}
-                style={[
-                  styles.dashRow,
-                  idx < upcomingAndDue.length - 1 && {
-                    borderBottomWidth: 1,
-                    borderBottomColor: palette.border,
-                  },
-                ]}
-              >
-                <Pressable
-                  style={styles.dashLeft}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${shop.name}, balance ${formatEtb(summary.balanceSantim)}`}
-                  onPress={() => {
-                    triggerHaptic('selection');
-                    setQuickActionShop(shop);
-                  }}
-                >
-                  <Text style={[styles.dashName, { color: palette.textPrimary }]} numberOfLines={1}>
-                    {shop.name}
-                  </Text>
-                  <View style={styles.dashMeta}>
-                    <StatusBadge status={summary.status} />
-                    <Text style={[styles.dashAmount, { color: palette.textPrimary }]}>
-                      {formatEtb(summary.balanceSantim)}
-                    </Text>
-                  </View>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.payChip,
-                    { backgroundColor: palette.primaryLight },
-                    pressed && { opacity: 0.75 },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pay ${shop.name}`}
-                  onPress={() =>
-                    router.push({ pathname: '/record-payment', params: { shopId: shop.id } })
-                  }
-                >
-                  <Text style={[styles.payChipText, { color: palette.primary }]}>Pay</Text>
-                </Pressable>
-              </View>
-            ))
-          )}
-        </View>
-      </View>
-
-      {/* Top Balances */}
-      {topBalances.length > 0 ? (
-        <View style={styles.sectionBlock}>
-          <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>Top balances</Text>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: palette.surface, borderColor: palette.border },
-            ]}
-          >
-            {topBalances.map(({ shop, summary }, index) => (
-              <Pressable
-                key={shop.id}
-                style={[
-                  styles.dashRow,
-                  index < topBalances.length - 1 && {
-                    borderBottomWidth: 1,
-                    borderBottomColor: palette.border,
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`${shop.name}, balance ${formatEtb(summary.balanceSantim)}`}
-                onPress={() => {
-                  triggerHaptic('selection');
-                  setQuickActionShop(shop);
-                }}
-              >
-                <Text style={[styles.rankNum, { color: palette.textMuted }]}>
-                  {String(index + 1).padStart(2, '0')}
-                </Text>
-                <Text
-                  style={[styles.dashName, { color: palette.textPrimary, flex: 1 }]}
-                  numberOfLines={1}
-                >
-                  {shop.name}
-                </Text>
-                <Text style={[styles.dashAmount, { color: palette.textPrimary }]}>
-                  {formatEtb(summary.balanceSantim)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      ) : null}
-
       {!loadingShops && grouped.needsReview.length > 0 ? (
         <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
@@ -698,45 +501,15 @@ export default function ShopsScreen() {
         </View>
       ) : null}
 
-      {/* All Shops Controls (Header + Search + Filter + Collapsible Add) */}
+      {/* Shops Section Header + Search & Filter Chips */}
       <View style={styles.sectionBlock}>
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitlePair}>
-            <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>All shops</Text>
+            <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>Shops</Text>
             <Text style={[styles.sectionMeta, { color: palette.textMuted }]}>
               {filteredApprovedShops.length}
             </Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.addToggleBtn,
-              {
-                borderColor: palette.borderStrong,
-                backgroundColor: palette.surface,
-              },
-              pressed && { opacity: 0.8 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Add new shop"
-            onPress={() => {
-              triggerHaptic('selection');
-              setShowCreateShopModal(true);
-            }}
-          >
-            <Feather
-              name="plus"
-              size={13}
-              color={palette.textPrimary}
-            />
-            <Text
-              style={[
-                styles.addToggleText,
-                { color: palette.textPrimary },
-              ]}
-            >
-              Add shop
-            </Text>
-          </Pressable>
         </View>
 
         {grouped.activeApproved.length === 0 && grouped.needsReview.length === 0 ? (
@@ -816,10 +589,10 @@ export default function ShopsScreen() {
             >
               {(
                 [
-                  ['all', 'All'],
-                  ['unpaid', 'Unpaid'],
-                  ['due', 'Due soon/now'],
-                  ['disputed', 'Disputed'],
+                  ['all', `All (${filterCounts.all})`],
+                  ['unpaid', `Unpaid (${filterCounts.unpaid})`],
+                  ['due', `Due (${filterCounts.due})`],
+                  ['disputed', `Disputed (${filterCounts.disputed})`],
                 ] as const
               ).map(([key, label]) => {
                 const active = shopFilter === key;
@@ -1036,7 +809,7 @@ const styles = StyleSheet.create({
     paddingBottom: Space.s32,
   },
   headerSections: {
-    gap: Space.s24,
+    gap: Space.s16,
     marginBottom: Space.s12,
   },
   shopItemWrap: {
@@ -1050,6 +823,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: Space.s12,
+  },
+  topActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s8,
+  },
+  topAddShopBtn: {
+    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s4,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Space.s12,
+  },
+  topAddShopText: {
+    fontFamily: Fonts.sansMedium,
+    fontSize: 12,
   },
   appWordmark: {
     fontFamily: Fonts.monoMedium,
@@ -1082,9 +872,9 @@ const styles = StyleSheet.create({
   },
   ledgerCard: {
     borderRadius: Radius.card,
-    padding: Space.s20,
+    padding: Space.s16,
     borderWidth: Hairline,
-    gap: Space.s16,
+    gap: Space.s12,
   },
   balanceBlock: {
     gap: Space.s4,
@@ -1131,19 +921,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.control,
   },
   primaryActionText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 14,
-  },
-  secondaryActionBtn: {
-    flex: 1,
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Space.s8,
-    borderRadius: Radius.control,
-  },
-  secondaryActionText: {
     fontFamily: Fonts.sansMedium,
     fontSize: 14,
   },
@@ -1253,105 +1030,6 @@ const styles = StyleSheet.create({
     padding: Space.s16,
     borderWidth: Hairline,
     gap: Space.s12,
-  },
-  quickStrip: {
-    gap: Space.s8,
-  },
-  quickChip: {
-    borderWidth: Hairline,
-    borderRadius: Radius.innerCard,
-    paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
-    gap: Space.s4,
-  },
-  quickChipTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.s8,
-  },
-  quickChipTitle: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  quickChipPrice: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 12,
-    lineHeight: 16,
-    fontVariant: ['tabular-nums'],
-  },
-  quickChipSub: {
-    fontFamily: Fonts.sans,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  dashRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Space.s8,
-    gap: Space.s12,
-  },
-  dashLeft: {
-    flex: 1,
-    gap: Space.s4,
-  },
-  dashName: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  dashMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.s8,
-  },
-  dashAmount: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 14,
-    lineHeight: 18,
-    fontVariant: ['tabular-nums'],
-  },
-  rankNum: {
-    fontFamily: Fonts.mono,
-    fontSize: 12,
-    width: 24,
-    fontVariant: ['tabular-nums'],
-  },
-  payChip: {
-    borderRadius: Radius.pill,
-    paddingHorizontal: Space.s12,
-    paddingVertical: 6,
-  },
-  payChipText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  addRow: {
-    flexDirection: 'row',
-    gap: Space.s8,
-    alignItems: 'center',
-  },
-  addInput: {
-    flex: 1,
-    height: 44,
-    borderWidth: Hairline,
-    borderRadius: Radius.control,
-    paddingHorizontal: Space.s12,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-  },
-  addBtn: {
-    height: 44,
-    borderRadius: Radius.control,
-    paddingHorizontal: Space.s20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addBtnText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 14,
   },
   filterBlock: {
     gap: Space.s8,
