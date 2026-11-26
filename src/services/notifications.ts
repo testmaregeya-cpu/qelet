@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { AndroidImportance } from 'expo-notifications/build/NotificationChannelManager.types';
 import { Platform } from 'react-native';
 import { getAddisAbabaDateString, shiftCalendarDays } from '../domain/billing';
-import { getSupabaseClient } from '../lib/supabase';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
 import type { ThemeMode, UserSettings } from '../types/phase4to6';
 
 const DEFAULT_NOTIFICATION_CHANNEL_ID = 'default';
@@ -232,7 +232,7 @@ export async function sendTestLocalNotification(title: string, body: string): Pr
 
 export interface PushRegistrationResult {
   token: string | null;
-  status: 'granted' | 'denied' | 'simulator' | 'error';
+  status: 'granted' | 'denied' | 'simulator' | 'missing_fcm' | 'error';
   errorMessage?: string;
 }
 
@@ -264,6 +264,18 @@ export async function registerExpoPushTokenDetailed(): Promise<PushRegistrationR
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn('Push token registration error:', msg);
+    if (
+      msg.includes('Firebase') ||
+      msg.includes('googleServicesFile') ||
+      msg.includes('Default FirebaseApp is not initialized')
+    ) {
+      return {
+        token: null,
+        status: 'missing_fcm',
+        errorMessage:
+          'google-services.json not configured in this native APK. Live alerts work while the app is open. Closed-app push requires an FCM project setup in Firebase.',
+      };
+    }
     return { token: null, status: 'error', errorMessage: msg };
   }
 }
@@ -271,6 +283,82 @@ export async function registerExpoPushTokenDetailed(): Promise<PushRegistrationR
 export async function registerExpoPushTokenSafely(): Promise<string | null> {
   const result = await registerExpoPushTokenDetailed();
   return result.token;
+}
+
+export async function dispatchLivePartnerNotification(params: {
+  entry: {
+    id: string;
+    created_by: string;
+    shop_id: string;
+    type: 'charge' | 'payment';
+    total_amount_santim: number;
+  };
+  shopName?: string;
+  actorName?: string;
+  members?: { user_id: string; display_name: string }[];
+}): Promise<boolean> {
+  try {
+    configureNotifications();
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      return false;
+    }
+
+    const partner = params.members?.find((m) => m.user_id === params.entry.created_by);
+    let actorName = params.actorName ?? partner?.display_name;
+    let shopName: string | undefined = params.shopName;
+
+    if ((!shopName || !actorName) && isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseClient();
+        const [{ data: shopData }, memberData] = await Promise.all([
+          !shopName
+            ? supabase.from('shops').select('name').eq('id', params.entry.shop_id).maybeSingle()
+            : Promise.resolve({ data: null }),
+          !actorName
+            ? supabase.from('members').select('display_name').eq('user_id', params.entry.created_by).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+
+        if (shopData?.name) {
+          shopName = shopData.name;
+        }
+        if (!actorName && memberData?.data?.display_name) {
+          actorName = memberData.data.display_name;
+        }
+      } catch {
+        // Fallback gracefully if Supabase client not available in test or offline
+      }
+    }
+
+    const payload = buildPartnerNotificationPayload({
+      actorName: actorName ?? 'Your partner',
+      shopName: shopName ?? 'a shop',
+      type: params.entry.type,
+      totalSantim: params.entry.total_amount_santim,
+    });
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: payload.title,
+        body: payload.body,
+        sound: true,
+        priority: 'high',
+        data: {
+          kind: 'partner_entry',
+          entryId: params.entry.id,
+          shopId: params.entry.shop_id,
+          href: `/shop/${params.entry.shop_id}`,
+        },
+      },
+      trigger: null,
+    });
+
+    return true;
+  } catch (err) {
+    console.warn('Live partner notification dispatch error:', err);
+    return false;
+  }
 }
 
 export async function sendTestPartnerPush(householdId: string): Promise<{ sent: number; reason?: string }> {

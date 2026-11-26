@@ -17,13 +17,16 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn(),
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[mock]' }),
   SchedulableTriggerInputTypes: { DATE: 'date', DAILY: 'daily', TIME_INTERVAL: 'timeInterval' },
+  AndroidNotificationPriority: { HIGH: 'high' },
 }));
 
 import {
   buildPartnerNotificationPayload,
+  dispatchLivePartnerNotification,
   registerExpoPushTokenDetailed,
   registerExpoPushTokenSafely,
 } from '../src/services/notifications';
+import * as Notifications from 'expo-notifications';
 
 describe('buildPartnerNotificationPayload', () => {
   it('formats ETB charge notification copy correctly', () => {
@@ -67,5 +70,40 @@ describe('buildPartnerNotificationPayload', () => {
 
     const safeToken = await registerExpoPushTokenSafely();
     expect(safeToken).toBe('ExponentPushToken[mock]');
+  });
+
+  it('handles missing FCM gracefully in registerExpoPushTokenDetailed', async () => {
+    (Notifications.getExpoPushTokenAsync as jest.Mock).mockRejectedValueOnce(
+      new Error('Unable to get Firebase Messaging instance. Default FirebaseApp is not initialized')
+    );
+
+    const res = await registerExpoPushTokenDetailed();
+    expect(res.status).toBe('missing_fcm');
+    expect(res.token).toBeNull();
+    expect(res.errorMessage).toContain('google-services.json');
+  });
+
+  it('dispatches live partner notification on-device without remote push', async () => {
+    const result = await dispatchLivePartnerNotification({
+      entry: {
+        id: 'entry-123',
+        created_by: 'partner-user-id',
+        shop_id: 'shop-456',
+        type: 'charge',
+        total_amount_santim: 15000,
+      },
+      members: [{ user_id: 'partner-user-id', display_name: 'Nni' }],
+    });
+
+    expect(result).toBe(true);
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          title: expect.stringContaining('New credit'),
+          body: expect.stringContaining('Nni added a credit charge of 150 ETB.'),
+        }),
+        trigger: null,
+      })
+    );
   });
 });

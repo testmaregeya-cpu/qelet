@@ -7,6 +7,7 @@ import { configureGoogleSignIn } from '../services/auth';
 import { fetchHouseholdContext } from '../services/household';
 import { createChargeEntry, createPaymentEntry } from '../services/ledger';
 import {
+  dispatchLivePartnerNotification,
   fetchUserSettings,
   refreshDailyLocalReminderFromCache,
   registerExpoPushTokenSafely,
@@ -212,6 +213,54 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       appSub.remove();
     };
   }, [configured, loadHouseholdForSession]);
+
+  // Global Realtime listener for instant partner alerts while app is live/open
+  useEffect(() => {
+    if (!configured || !session || !householdContext) {
+      return;
+    }
+
+    const currentUserId = session.user.id;
+    const currentHouseholdId = householdContext.household.id;
+    const members = householdContext.members;
+    const supabase = getSupabaseClient();
+    const subId = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const channel = supabase
+      .channel(`live_alerts:${currentHouseholdId}:${subId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'entries',
+          filter: `household_id=eq.${currentHouseholdId}`,
+        },
+        (payload) => {
+          const newEntry = payload.new as {
+            id: string;
+            created_by: string;
+            shop_id: string;
+            type: 'charge' | 'payment';
+            total_amount_santim: number;
+          };
+
+          if (!newEntry || newEntry.created_by === currentUserId) {
+            return;
+          }
+
+          void dispatchLivePartnerNotification({
+            entry: newEntry,
+            members,
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [configured, session, householdContext]);
 
   return (
     <SessionContext.Provider

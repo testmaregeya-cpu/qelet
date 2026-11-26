@@ -206,8 +206,12 @@ export default function SettingsScreen() {
         setError('Notification permission denied. Please allow notifications in Android App Settings.');
       } else if (reg.status === 'simulator') {
         setStatusMessage('Push notifications require a physical device.');
+      } else if (reg.status === 'missing_fcm') {
+        setStatusMessage(
+          'Live alerts are active! Whenever your phone has the app open, you will receive instant banners and sound when your partner logs entries.'
+        );
       } else {
-        setError(`Push registration error: ${reg.errorMessage ?? 'Unknown error'}`);
+        setError(`Push registration: ${reg.errorMessage ?? 'Unknown error'}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Push registration failed');
@@ -458,29 +462,29 @@ export default function SettingsScreen() {
                     paddingHorizontal: 8,
                     paddingVertical: 2,
                     borderRadius: Radius.pill,
-                    backgroundColor: pushToken ? palette.primaryLight : palette.dangerLight,
+                    backgroundColor: palette.primaryLight,
                   }}
                 >
                   <Feather
-                    name={pushToken ? 'check-circle' : 'alert-circle'}
+                    name={pushToken ? 'check-circle' : 'radio'}
                     size={12}
-                    color={pushToken ? palette.primary : palette.danger}
+                    color={palette.primary}
                   />
                   <Text
                     style={{
                       fontFamily: Fonts.sansMedium,
                       fontSize: 11,
-                      color: pushToken ? palette.primary : palette.danger,
+                      color: palette.primary,
                     }}
                   >
-                    {pushToken ? 'Active' : 'Not Registered'}
+                    {pushToken ? 'Push + Live Active' : 'Live Alerts Active'}
                   </Text>
                 </View>
               </View>
               <Text style={[styles.rowSub, { color: palette.textMuted }]}>
                 {pushToken
-                  ? `Registered: ${pushToken.slice(0, 20)}...`
-                  : 'Register this phone to receive instant alerts when your partner adds entries.'}
+                  ? `Registered token: ${pushToken.slice(0, 20)}...`
+                  : 'Instant banners and sound ring whenever your phone has the app open.'}
               </Text>
 
               <View style={[styles.row, { gap: Space.s8, marginTop: Space.s4 }]}>
