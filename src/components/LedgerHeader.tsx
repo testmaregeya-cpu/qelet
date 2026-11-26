@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Space } from '../theme/tokens';
+import { Fonts, Hairline, Space } from '../theme/tokens';
 
 interface LedgerHeaderProps {
   title: string;
@@ -53,12 +53,12 @@ export function LedgerHeader({
 
 const styles = StyleSheet.create({
   bar: {
-    height: 56,
+    height: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Space.s16,
-    borderBottomWidth: 1,
+    borderBottomWidth: Hairline,
     gap: Space.s12,
   },
   backBtn: {

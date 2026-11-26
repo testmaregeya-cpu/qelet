@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
-import { Space, Radius, Fonts } from '../theme/tokens';
+import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
 import { createShop } from '../services/shops';
 import type { Shop } from '../types/phase1';
@@ -113,9 +113,11 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
         <View
           style={[
             styles.sheet,
-            { backgroundColor: palette.surface, borderColor: palette.border },
+            { backgroundColor: palette.surface, borderTopColor: palette.border },
           ]}
         >
+          <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
+
           {/* Header */}
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
@@ -157,9 +159,9 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
                       styles.presetChip,
                       {
                         backgroundColor:
-                          name === preset ? palette.primaryLight : palette.background,
+                          name === preset ? palette.primaryLight : palette.surfaceMuted,
                         borderColor:
-                          name === preset ? palette.primary : palette.border,
+                          name === preset ? palette.primary : 'transparent',
                       },
                       pressed && { opacity: 0.8 },
                     ]}
@@ -202,7 +204,7 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
                     backgroundColor: palette.background,
                     borderColor: isDuplicate
                       ? palette.danger
-                      : palette.borderStrong,
+                      : palette.border,
                     color: palette.textPrimary,
                   },
                 ]}
@@ -274,7 +276,7 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
               <Pressable
                 style={({ pressed }) => [
                   styles.cancelBtn,
-                  { borderColor: palette.borderStrong },
+                  { borderColor: palette.border },
                   pressed && { opacity: 0.8 },
                 ]}
                 disabled={submitting}
@@ -342,11 +344,18 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,
-    borderTopWidth: 1,
-    paddingTop: Space.s20,
+    borderTopWidth: Hairline,
+    paddingTop: Space.s12,
     paddingHorizontal: Space.s20,
     paddingBottom: Platform.OS === 'ios' ? Space.s32 : Space.s24,
     maxHeight: '85%',
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: Space.s16,
   },
   header: {
     flexDirection: 'row',
@@ -388,7 +397,7 @@ const styles = StyleSheet.create({
     paddingVertical: Space.s8,
     paddingHorizontal: Space.s12,
     borderRadius: Radius.pill,
-    borderWidth: 1,
+    borderWidth: Hairline,
   },
   presetChipText: {
     fontFamily: Fonts.sansMedium,
@@ -414,7 +423,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 15,
     height: 48,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
   },
@@ -429,7 +438,7 @@ const styles = StyleSheet.create({
     gap: Space.s8,
     padding: Space.s12,
     borderRadius: Radius.control,
-    borderWidth: 1,
+    borderWidth: Hairline,
   },
   roleNoticeText: {
     fontFamily: Fonts.sans,
@@ -458,7 +467,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: Radius.control,
-    borderWidth: 1,
+    borderWidth: Hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },

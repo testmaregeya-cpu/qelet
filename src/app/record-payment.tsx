@@ -35,7 +35,7 @@ import {
 import { fetchShops } from '../services/shops';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
 import type { LedgerEntry } from '../types/phase2';
 
@@ -370,23 +370,27 @@ export default function RecordPaymentScreen() {
               >
                 <View style={styles.fieldGroup}>
                   <Text style={[styles.label, { color: palette.textSecondary }]}>
-                    Payment amount (ETB)
+                    Payment amount
                   </Text>
-                  <TextInput
+                  <View
                     style={[
-                      styles.amountInput,
-                      {
-                        borderColor: palette.borderStrong,
-                        color: palette.textPrimary,
-                        backgroundColor: palette.background,
-                      },
+                      styles.heroAmountCard,
+                      { backgroundColor: palette.background, borderColor: palette.border },
                     ]}
-                    value={amountEtb}
-                    onChangeText={setAmountEtb}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={palette.textMuted}
-                  />
+                  >
+                    <TextInput
+                      style={[
+                        styles.heroAmountInput,
+                        { color: palette.textPrimary },
+                      ]}
+                      value={amountEtb}
+                      onChangeText={setAmountEtb}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor={palette.textMuted}
+                    />
+                    <Text style={[styles.currencySuffix, { color: palette.textSecondary }]}>ETB</Text>
+                  </View>
                 </View>
 
                 {preview ? (
@@ -556,7 +560,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s16,
   },
   fieldGroup: {
@@ -580,14 +584,14 @@ const styles = StyleSheet.create({
   chipRow: { gap: Space.s8 },
   dateQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.s8 },
   chip: {
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
   },
   chipText: { fontFamily: Fonts.sansMedium, fontSize: 13, lineHeight: 16 },
   balanceBox: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.innerCard,
     padding: Space.s12,
     flexDirection: 'row',
@@ -602,22 +606,45 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   fillBtn: {
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
   },
   fillBtnText: { fontFamily: Fonts.sansMedium, fontSize: 13 },
   input: {
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
     fontSize: 15,
   },
+  heroAmountCard: {
+    height: 64,
+    borderWidth: Hairline,
+    borderRadius: Radius.innerCard,
+    paddingHorizontal: Space.s16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroAmountInput: {
+    flex: 1,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 28,
+    lineHeight: 34,
+    fontVariant: ['tabular-nums'],
+    paddingVertical: 0,
+  },
+  currencySuffix: {
+    fontFamily: Fonts.monoMedium,
+    fontSize: 15,
+    lineHeight: 20,
+    marginLeft: Space.s8,
+  },
   amountInput: {
     height: 52,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.monoMedium,

@@ -3,7 +3,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatEtb } from '../lib/money';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Member, Shop } from '../types/phase1';
 import type { ShopLedgerSummary } from '../types/phase2';
 import { StatusBadge } from './StatusBadge';
@@ -156,7 +156,7 @@ export const ShopRow = React.memo(function ShopRow({
               <Pressable
                 style={({ pressed }) => [
                   styles.quickActionPill,
-                  { borderColor: palette.borderStrong, borderWidth: 1 },
+                  { backgroundColor: palette.surfaceMuted },
                   pressed && { opacity: 0.8 },
                 ]}
                 accessibilityRole="button"
@@ -188,14 +188,14 @@ export const ShopRow = React.memo(function ShopRow({
                     onQuickApprove(shop.id);
                   }}
                 >
-                  <Feather name="check" size={14} color={palette.primary} />
+                  <Feather name="check" size={13} color={palette.primary} />
                   <Text style={[styles.actionBtnText, { color: palette.primary }]}>Approve</Text>
                 </Pressable>
               ) : null}
               <Pressable
                 style={({ pressed }) => [
                   styles.manageBtn,
-                  { borderColor: palette.borderStrong },
+                  { backgroundColor: palette.surfaceMuted },
                   pressed && { opacity: 0.75 },
                 ]}
                 accessibilityRole="button"
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
   },
   cardMuted: {
@@ -235,22 +235,22 @@ const styles = StyleSheet.create({
     gap: Space.s12,
   },
   monogramBox: {
-    width: 40,
-    height: 40,
-    borderRadius: Radius.control,
+    width: 44,
+    height: 44,
+    borderRadius: Radius.innerCard,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   monogramText: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 16,
-    lineHeight: 20,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 17,
+    lineHeight: 22,
   },
   creatorDot: {
     position: 'absolute',
-    right: -2,
-    bottom: -2,
+    right: -1,
+    bottom: -1,
     width: 10,
     height: 10,
     borderRadius: 5,
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: Space.s8,
+    gap: Space.s6,
   },
   topLine: {
     flexDirection: 'row',
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   },
   shopName: {
     flex: 1,
-    fontFamily: Fonts.sansMedium,
+    fontFamily: Fonts.sansSemi,
     fontSize: 16,
     lineHeight: 20,
   },
@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   tag: {
-    borderRadius: Radius.tag,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s8,
     paddingVertical: Space.s4,
   },
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: Space.s8,
-    borderTopWidth: 1,
+    borderTopWidth: Hairline,
     paddingTop: Space.s12,
   },
   quickActionGroup: {
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     gap: Space.s4,
     borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s4,
+    paddingVertical: 6,
   },
   quickActionText: {
     fontFamily: Fonts.sansMedium,
@@ -335,27 +335,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s4,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   actionBtnText: {
     fontFamily: Fonts.sansMedium,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 16,
   },
   manageBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s4,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   manageBtnText: {
     fontFamily: Fonts.sansMedium,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 16,
   },
 });

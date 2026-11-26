@@ -39,7 +39,7 @@ import {
 } from '../services/shops';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
 import type { LedgerEntry, ShopLedgerSummary } from '../types/phase2';
 
@@ -283,7 +283,7 @@ export default function ShopsScreen() {
     <View style={styles.headerSections}>
       {/* Top Context Row */}
       <View style={styles.topRow}>
-        <View style={{ flex: 1, gap: Space.s4 }}>
+        <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.appWordmark, { color: palette.textMuted }]}>Qelet ledger</Text>
           <Text style={[styles.householdName, { color: palette.textPrimary }]} numberOfLines={1}>
             {household.name}
@@ -293,7 +293,7 @@ export default function ShopsScreen() {
         <View
           style={[
             styles.memberChip,
-            { backgroundColor: palette.surface, borderColor: palette.border },
+            { backgroundColor: palette.surfaceMuted },
           ]}
         >
           <View
@@ -362,7 +362,6 @@ export default function ShopsScreen() {
             style={({ pressed }) => [
               styles.secondaryActionBtn,
               {
-                borderColor: palette.borderStrong,
                 backgroundColor: palette.surfaceMuted,
               },
               !activeShopsExist && styles.disabled,
@@ -763,10 +762,10 @@ export default function ShopsScreen() {
             <View
               style={[
                 styles.searchWrap,
-                { borderColor: palette.borderStrong, backgroundColor: palette.surface },
+                { borderColor: palette.border, backgroundColor: palette.surfaceMuted },
               ]}
             >
-              <Feather name="search" size={14} color={palette.textMuted} />
+              <Feather name="search" size={15} color={palette.textMuted} />
               <TextInput
                 style={[styles.searchInput, { color: palette.textPrimary }]}
                 value={searchQuery}
@@ -782,7 +781,7 @@ export default function ShopsScreen() {
                   accessibilityLabel="Clear shop search"
                   onPress={() => setSearchQuery('')}
                 >
-                  <Feather name="x" size={14} color={palette.textMuted} />
+                  <Feather name="x" size={15} color={palette.textMuted} />
                 </Pressable>
               ) : null}
             </View>
@@ -807,8 +806,8 @@ export default function ShopsScreen() {
                     style={[
                       styles.filterChip,
                       {
-                        borderColor: active ? palette.primary : palette.borderStrong,
-                        backgroundColor: active ? palette.primaryLight : palette.surface,
+                        borderColor: active ? palette.primary : 'transparent',
+                        backgroundColor: active ? palette.primaryLight : palette.surfaceMuted,
                       },
                     ]}
                     accessibilityRole="button"
@@ -821,7 +820,10 @@ export default function ShopsScreen() {
                     <Text
                       style={[
                         styles.filterChipText,
-                        { color: active ? palette.primary : palette.textSecondary },
+                        {
+                          color: active ? palette.primary : palette.textSecondary,
+                          fontFamily: active ? Fonts.sansSemi : Fonts.sansMedium,
+                        },
                       ]}
                     >
                       {label}
@@ -1032,19 +1034,18 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   householdName: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 24,
-    lineHeight: 28,
-    letterSpacing: -0.2,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.3,
   },
   memberChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.s8,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    gap: Space.s6,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   memberDot: {
     width: 8,
@@ -1059,7 +1060,7 @@ const styles = StyleSheet.create({
   ledgerCard: {
     borderRadius: Radius.card,
     padding: Space.s20,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s16,
   },
   balanceBlock: {
@@ -1071,10 +1072,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   balanceValue: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 32,
-    lineHeight: 36,
-    letterSpacing: -0.5,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
   syncRow: {
@@ -1099,7 +1100,7 @@ const styles = StyleSheet.create({
   },
   primaryActionBtn: {
     flex: 1,
-    height: 44,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1112,12 +1113,11 @@ const styles = StyleSheet.create({
   },
   secondaryActionBtn: {
     flex: 1,
-    height: 44,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.s8,
-    borderWidth: 1,
     borderRadius: Radius.control,
   },
   secondaryActionText: {
@@ -1126,7 +1126,7 @@ const styles = StyleSheet.create({
   },
   inviteBox: {
     borderRadius: Radius.innerCard,
-    borderWidth: 1,
+    borderWidth: Hairline,
     padding: Space.s12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
   },
   pendingBanner: {
     borderRadius: Radius.innerCard,
-    borderWidth: 1,
+    borderWidth: Hairline,
     padding: Space.s12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1171,7 +1171,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s4,
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
   },
   smallPrimaryText: {
@@ -1181,8 +1181,8 @@ const styles = StyleSheet.create({
   smallSecondaryBtn: {
     width: 36,
     height: 36,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1204,8 +1204,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s4,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s4,
   },
@@ -1228,14 +1228,14 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
   },
   quickStrip: {
     gap: Space.s8,
   },
   quickChip: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.innerCard,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
@@ -1296,13 +1296,13 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   payChip: {
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   payChipText: {
     fontFamily: Fonts.sansMedium,
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 16,
   },
   addRow: {
@@ -1313,7 +1313,7 @@ const styles = StyleSheet.create({
   addInput: {
     flex: 1,
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
@@ -1334,10 +1334,10 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   searchWrap: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: Radius.control,
-    paddingHorizontal: Space.s12,
+    height: 42,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Space.s14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Space.s8,
@@ -1352,10 +1352,10 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   filterChip: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s4,
+    paddingVertical: 6,
   },
   filterChipText: {
     fontFamily: Fonts.sansMedium,

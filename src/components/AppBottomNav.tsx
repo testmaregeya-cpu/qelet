@@ -2,9 +2,10 @@ import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerHaptic } from '../lib/haptics';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 
 export type NavTab = 'home' | 'insights' | 'admin' | 'settings';
 
@@ -15,6 +16,7 @@ interface AppBottomNavProps {
 
 export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
   const { palette } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const tabs: {
     key: NavTab;
@@ -41,7 +43,11 @@ export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
     <View
       style={[
         styles.bar,
-        { backgroundColor: palette.navSurface, borderTopColor: palette.border },
+        {
+          backgroundColor: palette.navSurface,
+          borderTopColor: palette.border,
+          paddingBottom: Math.max(insets.bottom, Space.s8),
+        },
       ]}
     >
       {tabs.map((tab) => {
@@ -52,7 +58,7 @@ export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
             key={tab.key}
             style={({ pressed }) => [
               styles.item,
-              selected && { backgroundColor: palette.surfaceMuted },
+              selected && { backgroundColor: palette.tabActiveBg },
               pressed && { opacity: 0.75 },
             ]}
             accessibilityRole="tab"
@@ -65,13 +71,13 @@ export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
               }
             }}
           >
-            <Feather name={tab.icon} size={18} color={color} />
+            <Feather name={tab.icon} size={20} color={color} />
             <Text
               style={[
                 styles.label,
                 {
-                  color: selected ? palette.textPrimary : palette.textMuted,
-                  fontFamily: selected ? Fonts.sansMedium : Fonts.sans,
+                  color: selected ? palette.primary : palette.textMuted,
+                  fontFamily: selected ? Fonts.sansSemi : Fonts.sans,
                 },
               ]}
             >
@@ -87,22 +93,24 @@ export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingVertical: Space.s8,
+    borderTopWidth: Hairline,
+    paddingTop: Space.s8,
     paddingHorizontal: Space.s12,
-    gap: Space.s4,
+    gap: Space.s6,
   },
   item: {
     flex: 1,
-    minHeight: 44,
-    borderRadius: Radius.control,
+    minHeight: 46,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Space.s4,
+    gap: 3,
     paddingVertical: Space.s4,
+    paddingHorizontal: Space.s8,
   },
   label: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.2,
   },
 });

@@ -2,6 +2,10 @@ export interface AppPalette {
   background: string;
   surface: string;
   surfaceMuted: string;
+  cardElevated: string;
+  glassBorder: string;
+  tabActiveBg: string;
+  pillMutedBg: string;
   navSurface: string;
   textPrimary: string;
   textSecondary: string;
@@ -35,12 +39,16 @@ export const LightPalette: AppPalette = {
   background: '#F7F4EE',
   surface: '#FDFBF7',
   surfaceMuted: '#EFE9DF',
+  cardElevated: '#FFFFFF',
+  glassBorder: 'rgba(31, 27, 22, 0.05)',
+  tabActiveBg: 'rgba(20, 108, 67, 0.10)',
+  pillMutedBg: 'rgba(31, 27, 22, 0.04)',
   navSurface: '#FDFBF7',
   textPrimary: '#1F1B16',
   textSecondary: '#5E554A',
   textMuted: '#7B7266',
-  border: 'rgba(31, 27, 22, 0.08)',
-  borderStrong: 'rgba(31, 27, 22, 0.16)',
+  border: 'rgba(31, 27, 22, 0.06)',
+  borderStrong: 'rgba(31, 27, 22, 0.12)',
   primary: '#146C43',
   primaryLight: 'rgba(20, 108, 67, 0.09)',
   accentButtonText: '#FFFFFF',
@@ -64,12 +72,16 @@ export const DarkPalette: AppPalette = {
   background: '#161513',
   surface: '#1C1A18',
   surfaceMuted: '#262421',
+  cardElevated: '#22201D',
+  glassBorder: 'rgba(239, 233, 222, 0.05)',
+  tabActiveBg: 'rgba(76, 195, 138, 0.14)',
+  pillMutedBg: 'rgba(239, 233, 222, 0.05)',
   navSurface: '#12110F',
   textPrimary: '#EFE9DE',
   textSecondary: '#AAA398',
   textMuted: '#8A847A',
-  border: 'rgba(239, 233, 222, 0.08)',
-  borderStrong: 'rgba(239, 233, 222, 0.16)',
+  border: 'rgba(239, 233, 222, 0.06)',
+  borderStrong: 'rgba(239, 233, 222, 0.12)',
   primary: '#4CC38A',
   primaryLight: 'rgba(76, 195, 138, 0.12)',
   accentButtonText: '#161513',

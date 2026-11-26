@@ -2,9 +2,13 @@ import type { TextStyle } from 'react-native';
 
 /** Strictly aligned to 4px grid. */
 export const Space = {
+  s2: 2,
   s4: 4,
+  s6: 6,
   s8: 8,
+  s10: 10,
   s12: 12,
+  s14: 14,
   s16: 16,
   s20: 20,
   s24: 24,
@@ -13,14 +17,17 @@ export const Space = {
   s48: 48,
 } as const;
 
+export const Hairline = 0.5;
+
 /** Nested radius tokens: inner = outer - padding, never below 4. */
 export const Radius = {
-  tag: 4,
-  pill: 6,
-  control: 8,
-  innerCard: 12,
-  card: 16,
-  sheet: 20,
+  tag: 6,
+  pill: 999,
+  control: 10,
+  innerCard: 14,
+  card: 18,
+  sheet: 26,
+  full: 999,
 } as const;
 
 export const Fonts = {
@@ -34,10 +41,13 @@ export const Fonts = {
 export const Type: Record<
   | 'pageTitle'
   | 'heroTitle'
+  | 'heroFigure'
+  | 'amountHero'
   | 'figureLg'
   | 'figureMd'
   | 'figureSm'
   | 'sectionTitle'
+  | 'sectionHeader'
   | 'body'
   | 'bodyMedium'
   | 'caption'
@@ -45,6 +55,20 @@ export const Type: Record<
   | 'monoMeta',
   TextStyle
 > = {
+  amountHero: {
+    fontFamily: Fonts.sansSemi,
+    fontSize: 44,
+    lineHeight: 50,
+    letterSpacing: -0.8,
+    fontVariant: ['tabular-nums'],
+  },
+  heroFigure: {
+    fontFamily: Fonts.sansSemi,
+    fontSize: 38,
+    lineHeight: 44,
+    letterSpacing: -0.6,
+    fontVariant: ['tabular-nums'],
+  },
   heroTitle: {
     fontFamily: Fonts.sansMedium,
     fontSize: 32,
@@ -80,6 +104,12 @@ export const Type: Record<
     fontFamily: Fonts.sansMedium,
     fontSize: 13,
     lineHeight: 16,
+  },
+  sectionHeader: {
+    fontFamily: Fonts.sansMedium,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.6,
   },
   body: {
     fontFamily: Fonts.sans,

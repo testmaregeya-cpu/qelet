@@ -36,7 +36,7 @@ import {
 } from '../../services/offlineQueue';
 import { useSession } from '../../state/SessionContext';
 import { useTheme } from '../../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../../theme/tokens';
 import type { LedgerEntry } from '../../types/phase2';
 import type { ItemSuggestion } from '../../types/phase4to6';
 
@@ -324,7 +324,6 @@ export default function ShopDetailScreen() {
                   style={({ pressed }) => [
                     styles.secondaryBtn,
                     {
-                      borderColor: palette.borderStrong,
                       backgroundColor: palette.surfaceMuted,
                     },
                     pressed && { opacity: 0.85 },
@@ -507,8 +506,8 @@ export default function ShopDetailScreen() {
                       style={[
                         styles.filterChip,
                         {
-                          borderColor: active ? palette.primary : palette.borderStrong,
-                          backgroundColor: active ? palette.primaryLight : palette.surface,
+                          borderColor: active ? palette.primary : 'transparent',
+                          backgroundColor: active ? palette.primaryLight : palette.surfaceMuted,
                         },
                       ]}
                       accessibilityRole="button"
@@ -521,7 +520,10 @@ export default function ShopDetailScreen() {
                       <Text
                         style={[
                           styles.filterChipText,
-                          { color: active ? palette.primary : palette.textSecondary },
+                          {
+                            color: active ? palette.primary : palette.textSecondary,
+                            fontFamily: active ? Fonts.sansSemi : Fonts.sansMedium,
+                          },
                         ]}
                       >
                         {label}
@@ -593,7 +595,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s16,
   },
   balanceHeader: {
@@ -608,17 +610,17 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   balanceBig: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 32,
-    lineHeight: 36,
-    letterSpacing: -0.5,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 34,
+    lineHeight: 40,
+    letterSpacing: -0.6,
     fontVariant: ['tabular-nums'],
   },
   totalsBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
+    borderTopWidth: Hairline,
+    borderBottomWidth: Hairline,
     paddingVertical: Space.s12,
   },
   totalCell: {
@@ -647,7 +649,7 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     flex: 1,
-    height: 44,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -660,12 +662,11 @@ const styles = StyleSheet.create({
   },
   secondaryBtn: {
     flex: 1,
-    height: 44,
+    height: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.s8,
-    borderWidth: 1,
     borderRadius: Radius.control,
   },
   secondaryBtnText: {
@@ -687,9 +688,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Space.s8,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    gap: Space.s6,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
   },
   shareActionText: {
     fontFamily: Fonts.sansMedium,
@@ -718,10 +719,10 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   filterChip: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s4,
+    paddingVertical: 6,
   },
   filterChipText: {
     fontFamily: Fonts.sansMedium,
@@ -736,11 +737,11 @@ const styles = StyleSheet.create({
   quickChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.s4,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    gap: Space.s6,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   quickChipText: {
     fontFamily: Fonts.sansMedium,

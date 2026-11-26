@@ -1,10 +1,11 @@
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatBillMonthLabel } from '../domain/billing';
 import { formatEtb, formatQuantityMilli } from '../lib/money';
 import { findMember } from '../lib/shopRules';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Member } from '../types/phase1';
 import type { LedgerEntry } from '../types/phase2';
 
@@ -36,7 +37,7 @@ export const ShopEntryCard = React.memo(function ShopEntryCard({
           borderColor: palette.border,
         },
         entry.voided && styles.entryVoided,
-        pressed && { opacity: 0.88 },
+        pressed && { opacity: 0.88, transform: [{ scale: 0.995 }] },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${isCharge ? 'Credit charge' : 'Payment'} ${formatEtb(
@@ -45,10 +46,25 @@ export const ShopEntryCard = React.memo(function ShopEntryCard({
       onPress={() => onPress(entry.id)}
     >
       <View style={styles.entryHeader}>
-        <View style={[styles.memberDot, { backgroundColor: dotColor }]} />
-        <View style={{ flex: 1, gap: Space.s4 }}>
+        <View
+          style={[
+            styles.iconCircle,
+            {
+              backgroundColor: isCharge ? palette.surfaceMuted : palette.primaryLight,
+            },
+          ]}
+        >
+          <Feather
+            name={isCharge ? 'arrow-up-right' : 'arrow-down-left'}
+            size={18}
+            color={isCharge ? palette.textPrimary : palette.primary}
+          />
+          <View style={[styles.memberDot, { backgroundColor: dotColor, borderColor: palette.surface }]} />
+        </View>
+
+        <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.entryTitle, { color: palette.textPrimary }]}>
-            {isCharge ? 'Charge' : 'Payment'} · {creatorName}
+            {isCharge ? 'Credit Purchase' : 'Payment'} · {creatorName}
           </Text>
           <Text style={[styles.entryDate, { color: palette.textMuted }]}>
             {entry.entry_date}
@@ -57,6 +73,7 @@ export const ShopEntryCard = React.memo(function ShopEntryCard({
             {hasOpenDispute ? ' · Disputed' : ''}
           </Text>
         </View>
+
         <Text
           style={[
             styles.entryAmount,
@@ -103,9 +120,9 @@ const styles = StyleSheet.create({
   entryCard: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
-    marginBottom: Space.s12,
+    marginBottom: Space.s10,
   },
   entryVoided: {
     opacity: 0.65,
@@ -115,21 +132,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Space.s12,
   },
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.innerCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
   memberDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 2,
   },
   entryTitle: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 14,
+    lineHeight: 18,
   },
   entryDate: {
-    fontFamily: Fonts.mono,
+    fontFamily: Fonts.sans,
     fontSize: 12,
     lineHeight: 16,
-    fontVariant: ['tabular-nums'],
   },
   entryAmount: {
     fontFamily: Fonts.monoMedium,
@@ -143,7 +171,7 @@ const styles = StyleSheet.create({
   linesBox: {
     borderRadius: Radius.innerCard,
     padding: Space.s12,
-    gap: Space.s8,
+    gap: Space.s6,
   },
   lineRow: {
     flexDirection: 'row',

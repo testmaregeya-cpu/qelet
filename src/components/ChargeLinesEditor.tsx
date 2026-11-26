@@ -9,7 +9,7 @@ import {
 import { triggerHaptic } from '../lib/haptics';
 import { formatEtb, formatSantimForInput } from '../lib/money';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { ItemSuggestion } from '../types/phase4to6';
 
 interface ChargeLinesEditorProps {
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
   },
   label: {
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   lineCard: {
     borderRadius: Radius.innerCard,
     padding: Space.s12,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
   },
   lineHeader: {
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
@@ -299,8 +299,8 @@ const styles = StyleSheet.create({
   },
   suggestionChip: {
     borderRadius: Radius.pill,
-    paddingHorizontal: Space.s8,
-    paddingVertical: Space.s4,
+    paddingHorizontal: Space.s12,
+    paddingVertical: 5,
   },
   suggestionText: {
     fontFamily: Fonts.sansMedium,
@@ -317,10 +317,10 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   unitChip: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s4,
+    paddingVertical: 5,
   },
   unitChipText: {
     fontFamily: Fonts.monoMedium,
@@ -337,9 +337,9 @@ const styles = StyleSheet.create({
     height: 44,
     flexDirection: 'row',
     gap: Space.s8,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderStyle: 'dashed',
-    borderRadius: Radius.control,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -38,7 +38,7 @@ import {
 } from '../services/notifications';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { ThemeMode } from '../types/phase4to6';
 
 const REMINDER_PRESETS = [
@@ -838,12 +838,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
-    height: 56,
+    height: 54,
     justifyContent: 'center',
     paddingHorizontal: Space.s16,
-    borderBottomWidth: 1,
+    borderBottomWidth: Hairline,
   },
-  headerTitle: { fontFamily: Fonts.sansMedium, fontSize: 18, lineHeight: 24 },
+  headerTitle: { fontFamily: Fonts.sansSemi, fontSize: 18, lineHeight: 24 },
   container: {
     paddingHorizontal: Space.s16,
     paddingTop: Space.s16,
@@ -853,7 +853,7 @@ const styles = StyleSheet.create({
   sectionBlock: { gap: Space.s8 },
   sectionTitle: { fontFamily: Fonts.sansMedium, fontSize: 13, lineHeight: 18 },
   card: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.card,
     padding: Space.s16,
     gap: Space.s12,
@@ -864,8 +864,8 @@ const styles = StyleSheet.create({
     height: 40,
     flexDirection: 'row',
     gap: Space.s8,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     gap: Space.s12,
   },
   dividedRow: {
-    borderTopWidth: 1,
+    borderTopWidth: Hairline,
     paddingTop: Space.s12,
   },
   rowTitle: { fontFamily: Fonts.sansMedium, fontSize: 14, lineHeight: 20 },
@@ -885,15 +885,15 @@ const styles = StyleSheet.create({
   rowSubMono: { fontFamily: Fonts.mono, fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.s8 },
   chip: {
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
   },
   chipText: { fontFamily: Fonts.monoMedium, fontSize: 12, fontVariant: ['tabular-nums'] },
   input: {
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
   secondarySmallBtn: {
     width: 44,
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     alignItems: 'center',
     justifyContent: 'center',
@@ -923,19 +923,19 @@ const styles = StyleSheet.create({
     height: 44,
     flexDirection: 'row',
     gap: Space.s8,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryBtnText: { fontFamily: Fonts.sansMedium, fontSize: 14 },
-  householdHeader: { fontFamily: Fonts.sansMedium, fontSize: 16, lineHeight: 20 },
+  householdHeader: { fontFamily: Fonts.sansSemi, fontSize: 16, lineHeight: 20 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s8 },
   memberDot: { width: 8, height: 8, borderRadius: 4 },
   memberName: { flex: 1, fontFamily: Fonts.sansMedium, fontSize: 14 },
   memberRole: { fontFamily: Fonts.mono, fontSize: 12 },
   inviteRow: {
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.innerCard,
     padding: Space.s12,
     flexDirection: 'row',

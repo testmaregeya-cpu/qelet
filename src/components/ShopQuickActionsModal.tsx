@@ -1,9 +1,10 @@
 import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerHaptic } from '../lib/haptics';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
 import { StatusBadge } from './StatusBadge';
 import type { ShopStatusBadge } from '../types/phase2';
@@ -21,7 +22,12 @@ interface ShopQuickActionsModalProps {
   onManage?: (shop: Shop) => void;
 }
 
-export function ShopQuickActionsModal({
+export function ShopQuickActionsModal(props: ShopQuickActionsModalProps) {
+  if (!props.shop) return null;
+  return <ShopQuickActionsModalContent {...props} shop={props.shop} />;
+}
+
+function ShopQuickActionsModalContent({
   visible,
   shop,
   balanceText,
@@ -32,10 +38,9 @@ export function ShopQuickActionsModal({
   onRecordPayment,
   onViewStatement,
   onManage,
-}: ShopQuickActionsModalProps) {
+}: ShopQuickActionsModalProps & { shop: Shop }) {
   const { palette } = useTheme();
-
-  if (!shop) return null;
+  const insets = useSafeAreaInsets();
 
   const isInactive = shop.archived || shop.merged_into_shop_id !== null;
 
@@ -43,17 +48,23 @@ export function ShopQuickActionsModal({
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable
           style={[
             styles.sheet,
-            { backgroundColor: palette.surface, borderColor: palette.border },
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+              paddingBottom: Math.max(Space.s24, insets.bottom + Space.s8),
+            },
           ]}
           onPress={(e) => e.stopPropagation()}
         >
+          <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
+
           {/* Header Row */}
           <View style={styles.header}>
             <View style={[styles.monogramBox, { backgroundColor: palette.surfaceMuted }]}>
@@ -61,7 +72,7 @@ export function ShopQuickActionsModal({
                 {shop.name.slice(0, 1).toUpperCase()}
               </Text>
             </View>
-            <View style={{ flex: 1, gap: Space.s4 }}>
+            <View style={{ flex: 1, gap: 2 }}>
               <Text style={[styles.shopName, { color: palette.textPrimary }]} numberOfLines={1}>
                 {shop.name}
               </Text>
@@ -72,8 +83,13 @@ export function ShopQuickActionsModal({
                 {status ? <StatusBadge status={status} /> : null}
               </View>
             </View>
-            <Pressable hitSlop={12} onPress={onClose} accessibilityLabel="Close actions">
-              <Feather name="x" size={20} color={palette.textMuted} />
+            <Pressable
+              hitSlop={12}
+              style={[styles.closeBtn, { backgroundColor: palette.surfaceMuted }]}
+              onPress={onClose}
+              accessibilityLabel="Close actions"
+            >
+              <Feather name="x" size={16} color={palette.textSecondary} />
             </Pressable>
           </View>
 
@@ -104,7 +120,7 @@ export function ShopQuickActionsModal({
                 <Pressable
                   style={({ pressed }) => [
                     styles.secondaryBtn,
-                    { borderColor: palette.borderStrong, backgroundColor: palette.surfaceMuted },
+                    { backgroundColor: palette.surfaceMuted },
                     pressed && { opacity: 0.85 },
                   ]}
                   accessibilityRole="button"
@@ -178,11 +194,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    borderTopLeftRadius: Radius.card,
-    borderTopRightRadius: Radius.card,
-    borderTopWidth: 1,
-    padding: Space.s20,
-    gap: Space.s20,
+    borderTopLeftRadius: Radius.sheet,
+    borderTopRightRadius: Radius.sheet,
+    borderTopWidth: Hairline,
+    paddingHorizontal: Space.s20,
+    paddingTop: Space.s12,
+    gap: Space.s16,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: Space.s8,
   },
   header: {
     flexDirection: 'row',
@@ -192,16 +216,16 @@ const styles = StyleSheet.create({
   monogramBox: {
     width: 44,
     height: 44,
-    borderRadius: Radius.control,
+    borderRadius: Radius.innerCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
   monogramText: {
-    fontFamily: Fonts.sansMedium,
+    fontFamily: Fonts.sansSemi,
     fontSize: 18,
   },
   shopName: {
-    fontFamily: Fonts.sansMedium,
+    fontFamily: Fonts.sansSemi,
     fontSize: 18,
     lineHeight: 24,
   },
@@ -215,11 +239,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontVariant: ['tabular-nums'],
   },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   actionList: {
-    gap: Space.s12,
+    gap: Space.s10,
+    paddingBottom: Space.s8,
   },
   primaryBtn: {
-    height: 50,
+    height: 48,
     borderRadius: Radius.control,
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,7 +265,6 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     height: 48,
     borderRadius: Radius.control,
-    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -244,16 +275,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   tertiaryBtn: {
-    height: 44,
+    height: 46,
     borderRadius: Radius.control,
-    borderWidth: 1,
+    borderWidth: Hairline,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.s8,
   },
   tertiaryBtnText: {
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.sansMedium,
     fontSize: 14,
   },
 });

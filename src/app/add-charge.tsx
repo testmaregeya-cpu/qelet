@@ -50,7 +50,7 @@ import {
 import { fetchShops } from '../services/shops';
 import { useSession } from '../state/SessionContext';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
 import type { ChargeLineDraft, LedgerEntry, PriceMemoryItem } from '../types/phase2';
 import type { CatalogItem, Category, ItemSuggestion } from '../types/phase4to6';
@@ -702,7 +702,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.card,
     padding: Space.s16,
-    borderWidth: 1,
+    borderWidth: Hairline,
     gap: Space.s12,
   },
   rowBetween: {
@@ -723,15 +723,15 @@ const styles = StyleSheet.create({
   chipRow: { gap: Space.s8 },
   dateQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.s8 },
   chip: {
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
   },
   chipText: { fontFamily: Fonts.sansMedium, fontSize: 13, lineHeight: 16 },
   input: {
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
@@ -764,11 +764,11 @@ const styles = StyleSheet.create({
   memoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.s8,
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    gap: Space.s6,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
-    paddingVertical: Space.s8,
+    paddingVertical: 6,
   },
   memoryChipText: {
     fontFamily: Fonts.sansMedium,
@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   grandTotalRow: {
-    borderTopWidth: 1,
+    borderTopWidth: Hairline,
     paddingTop: Space.s12,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -791,9 +791,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   grandTotalValue: {
-    fontFamily: Fonts.monoMedium,
-    fontSize: 22,
-    lineHeight: 28,
+    fontFamily: Fonts.sansSemi,
+    fontSize: 24,
+    lineHeight: 30,
     fontVariant: ['tabular-nums'],
   },
   primaryBtn: {

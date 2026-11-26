@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
-import { Fonts, Radius, Space } from '../theme/tokens';
+import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
 
 interface ShopManageModalProps {
@@ -105,9 +105,9 @@ function ShopManageModalContent({
               onPress={onClose}
               disabled={busy}
               hitSlop={8}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { backgroundColor: palette.surfaceMuted }]}
             >
-              <Feather name="x" size={18} color={palette.textSecondary} />
+              <Feather name="x" size={16} color={palette.textSecondary} />
             </Pressable>
           </View>
 
@@ -150,7 +150,7 @@ function ShopManageModalContent({
                         styles.input,
                         {
                           flex: 1,
-                          borderColor: palette.borderStrong,
+                          borderColor: palette.border,
                           color: palette.textPrimary,
                           backgroundColor: palette.background,
                         },
@@ -195,10 +195,10 @@ function ShopManageModalContent({
                             style={[
                               styles.targetChip,
                               {
-                                borderColor: selected ? palette.primary : palette.borderStrong,
+                                borderColor: selected ? palette.primary : 'transparent',
                                 backgroundColor: selected
                                   ? palette.primaryLight
-                                  : palette.background,
+                                  : palette.surfaceMuted,
                               },
                             ]}
                             disabled={busy}
@@ -209,6 +209,7 @@ function ShopManageModalContent({
                                 styles.targetChipText,
                                 {
                                   color: selected ? palette.primary : palette.textPrimary,
+                                  fontFamily: selected ? Fonts.sansSemi : Fonts.sansMedium,
                                 },
                               ]}
                             >
@@ -224,7 +225,7 @@ function ShopManageModalContent({
                           styles.actionBtn,
                           {
                             backgroundColor: palette.amberLight,
-                            borderWidth: 1,
+                            borderWidth: Hairline,
                             borderColor: palette.amber,
                           },
                           busy && styles.disabled,
@@ -250,7 +251,7 @@ function ShopManageModalContent({
                         ? { backgroundColor: palette.primary }
                         : {
                             backgroundColor: palette.dangerLight,
-                            borderWidth: 1,
+                            borderWidth: Hairline,
                             borderColor: palette.danger,
                           },
                       busy && styles.disabled,
@@ -289,7 +290,7 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,
-    borderTopWidth: 1,
+    borderTopWidth: Hairline,
     maxHeight: '84%',
     paddingHorizontal: Space.s20,
     paddingTop: Space.s12,
@@ -308,13 +309,14 @@ const styles = StyleSheet.create({
     marginBottom: Space.s16,
   },
   title: {
-    fontFamily: Fonts.sansMedium,
+    fontFamily: Fonts.sansSemi,
     fontSize: 18,
     lineHeight: 24,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -334,7 +336,7 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderWidth: 1,
+    borderWidth: Hairline,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
     fontFamily: Fonts.sans,
@@ -355,7 +357,7 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   dividedSection: {
-    borderTopWidth: 1,
+    borderTopWidth: Hairline,
     paddingTop: Space.s16,
   },
   mutedNote: {
@@ -369,18 +371,17 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   targetChip: {
-    borderWidth: 1,
-    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    borderRadius: Radius.pill,
     paddingHorizontal: Space.s12,
     paddingVertical: Space.s8,
   },
   targetChipText: {
-    fontFamily: Fonts.sansMedium,
     fontSize: 13,
     lineHeight: 16,
   },
   actionBtn: {
-    height: 44,
+    height: 46,
     flexDirection: 'row',
     gap: Space.s8,
     borderRadius: Radius.control,
