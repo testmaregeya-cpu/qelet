@@ -133,3 +133,39 @@ export async function clearCachedPersonalExpenses(userId: string): Promise<void>
   }
 }
 
+const PERSONAL_CATEGORIES_CACHE_PREFIX = 'qelet_personal_categories_v1_';
+
+export async function cachePersonalCategories<T = unknown>(
+  userId: string,
+  categories: T[]
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      `${PERSONAL_CATEGORIES_CACHE_PREFIX}${userId}`,
+      JSON.stringify(categories)
+    );
+  } catch {
+    // Non-fatal if storage full
+  }
+}
+
+export async function getCachedPersonalCategories<T = unknown>(
+  userId: string
+): Promise<T[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`${PERSONAL_CATEGORIES_CACHE_PREFIX}${userId}`);
+    return raw ? (JSON.parse(raw) as T[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearCachedPersonalCategories(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(`${PERSONAL_CATEGORIES_CACHE_PREFIX}${userId}`);
+  } catch {
+    // Non-fatal
+  }
+}
+
+

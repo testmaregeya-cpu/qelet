@@ -26,6 +26,7 @@ import { formatEtb } from '../lib/money';
 import { isSuperAdmin } from '../lib/shopRules';
 import {
   deletePersonalExpense,
+  fetchPersonalCategories,
   fetchPersonalExpenses,
   syncPersonalExpensesQueue,
 } from '../services/personalExpenses';
@@ -34,8 +35,10 @@ import { useTheme } from '../theme/ThemeContext';
 import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import {
   EXPENSE_CATEGORIES,
+  getCategoryMeta,
   PAYMENT_METHODS,
   type ExpenseCategoryKey,
+  type PersonalCategory,
   type PersonalExpense,
 } from '../types/personalExpense';
 
@@ -44,6 +47,7 @@ export default function ExpensesScreen() {
   const { loading, session, householdContext } = useSession();
 
   const [expenses, setExpenses] = useState<PersonalExpense[]>([]);
+  const [customCategories, setCustomCategories] = useState<PersonalCategory[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,8 +68,12 @@ export default function ExpensesScreen() {
     if (!userId) return;
     try {
       void syncPersonalExpensesQueue(userId).catch(() => undefined);
-      const data = await fetchPersonalExpenses(userId);
-      setExpenses(data);
+      const [expData, catData] = await Promise.all([
+        fetchPersonalExpenses(userId),
+        fetchPersonalCategories(userId),
+      ]);
+      setExpenses(expData);
+      setCustomCategories(catData);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load personal expenses');
@@ -82,9 +90,13 @@ export default function ExpensesScreen() {
     void (async () => {
       try {
         void syncPersonalExpensesQueue(userId).catch(() => undefined);
-        const data = await fetchPersonalExpenses(userId);
+        const [expData, catData] = await Promise.all([
+          fetchPersonalExpenses(userId),
+          fetchPersonalCategories(userId),
+        ]);
         if (active) {
-          setExpenses(data);
+          setExpenses(expData);
+          setCustomCategories(catData);
           setError(null);
         }
       } catch (err) {
@@ -125,15 +137,58 @@ export default function ExpensesScreen() {
   );
 
   const analytics = useMemo(
-    () => computeMonthlyPersonalAnalytics(expenses, activeMonth, todayStr),
-    [expenses, activeMonth, todayStr]
+    () =>
+      computeMonthlyPersonalAnalytics(
+        expenses,
+        activeMonth,
+        todayStr,
+        customCategories
+      ),
+    [expenses, activeMonth, todayStr, customCategories]
   );
+
+  const availableFilterCategories = useMemo(() => {
+    const list: {
+      key: string;
+      label: string;
+      icon: keyof typeof Feather.glyphMap;
+      color: string;
+      bgColor: string;
+    }[] = [];
+
+    // Custom categories first
+    for (const custom of customCategories) {
+      list.push({
+        key: custom.name,
+        label: custom.name,
+        icon: custom.icon || 'tag',
+        color: custom.color || '#0284C7',
+        bgColor: custom.bg_color || '#E0F2FE',
+      });
+    }
+
+    // Predefined standard categories
+    for (const catKey of Object.keys(EXPENSE_CATEGORIES) as ExpenseCategoryKey[]) {
+      const meta = EXPENSE_CATEGORIES[catKey];
+      list.push({
+        key: catKey,
+        label: meta.label,
+        icon: meta.icon,
+        color: meta.color,
+        bgColor: meta.bgColor,
+      });
+    }
+
+    return list;
+  }, [customCategories]);
 
   const filteredExpenses = useMemo(() => {
     let result = currentMonthExpenses;
 
     if (categoryFilter !== 'all') {
-      result = result.filter((e) => e.category === categoryFilter);
+      result = result.filter(
+        (e) => e.category.toLowerCase() === categoryFilter.toLowerCase()
+      );
     }
 
     if (searchQuery.trim()) {
@@ -516,42 +571,45 @@ export default function ExpensesScreen() {
                 </Text>
               </Pressable>
 
-              {(Object.keys(EXPENSE_CATEGORIES) as ExpenseCategoryKey[]).map((catKey) => {
-                const meta = EXPENSE_CATEGORIES[catKey];
-                const count = currentMonthExpenses.filter((e) => e.category === catKey).length;
-                if (count === 0 && categoryFilter !== catKey) return null;
-                const isSelected = categoryFilter === catKey;
+              {availableFilterCategories.map((cat) => {
+                const count = currentMonthExpenses.filter(
+                  (e) => e.category.toLowerCase() === cat.key.toLowerCase()
+                ).length;
+                if (count === 0 && categoryFilter.toLowerCase() !== cat.key.toLowerCase()) {
+                  return null;
+                }
+                const isSelected = categoryFilter.toLowerCase() === cat.key.toLowerCase();
                 return (
                   <Pressable
-                    key={catKey}
+                    key={cat.key}
                     style={[
                       styles.filterChip,
                       {
-                        backgroundColor: isSelected ? meta.bgColor : palette.cardElevated,
-                        borderColor: isSelected ? meta.color : palette.border,
+                        backgroundColor: isSelected ? cat.bgColor : palette.cardElevated,
+                        borderColor: isSelected ? cat.color : palette.border,
                       },
                     ]}
                     onPress={() => {
                       triggerHaptic('selection');
-                      setCategoryFilter(catKey);
+                      setCategoryFilter(isSelected ? 'all' : cat.key);
                     }}
                   >
                     <Feather
-                      name={meta.icon}
+                      name={cat.icon}
                       size={12}
-                      color={isSelected ? meta.color : palette.textMuted}
+                      color={isSelected ? cat.color : palette.textMuted}
                       style={{ marginRight: 4 }}
                     />
                     <Text
                       style={[
                         styles.filterChipText,
                         {
-                          color: isSelected ? meta.color : palette.textPrimary,
+                          color: isSelected ? cat.color : palette.textPrimary,
                           fontFamily: isSelected ? Fonts.sansSemi : Fonts.sans,
                         },
                       ]}
                     >
-                      {meta.label} ({count})
+                      {cat.label} ({count})
                     </Text>
                   </Pressable>
                 );
@@ -578,6 +636,7 @@ export default function ExpensesScreen() {
                 <PersonalExpenseRow
                   key={expense.id}
                   expense={expense}
+                  customCategories={customCategories}
                   onPress={handleEditExpense}
                   onDelete={handleDeleteExpense}
                 />
@@ -662,7 +721,7 @@ export default function ExpensesScreen() {
               </Text>
             ) : (
               analytics.categories.map((cat) => {
-                const meta = EXPENSE_CATEGORIES[cat.category] ?? EXPENSE_CATEGORIES.other;
+                const meta = getCategoryMeta(cat.category, customCategories);
                 return (
                   <View
                     key={cat.category}
@@ -673,8 +732,17 @@ export default function ExpensesScreen() {
                   >
                     <View style={styles.categoryCardTop}>
                       <View style={styles.catLeft}>
-                        <View style={[styles.catIconWrap, { backgroundColor: meta.bgColor }]}>
-                          <Feather name={meta.icon} size={15} color={meta.color} />
+                        <View
+                          style={[
+                            styles.catIconWrap,
+                            { backgroundColor: cat.bgColor || meta.bgColor },
+                          ]}
+                        >
+                          <Feather
+                            name={cat.icon || meta.icon}
+                            size={15}
+                            color={cat.color || meta.color}
+                          />
                         </View>
                         <View>
                           <Text style={[styles.catName, { color: palette.textPrimary }]}>
@@ -718,7 +786,7 @@ export default function ExpensesScreen() {
                           styles.progressBarFill,
                           {
                             width: `${Math.min(100, Math.max(4, cat.pctOfTotal))}%`,
-                            backgroundColor: meta.color,
+                            backgroundColor: cat.color || meta.color,
                           },
                         ]}
                       />
@@ -771,6 +839,15 @@ export default function ExpensesScreen() {
         onSaved={handleExpenseSaved}
         userId={session.user.id}
         initialExpense={editingExpense}
+        customCategories={customCategories}
+        onCategoryCreated={(newCat) => {
+          setCustomCategories((prev) => [
+            ...prev.filter(
+              (c) => c.name.toLowerCase() !== newCat.name.toLowerCase()
+            ),
+            newCat,
+          ].sort((a, b) => a.name.localeCompare(b.name)));
+        }}
       />
 
       {/* Bottom Tab Navigation */}

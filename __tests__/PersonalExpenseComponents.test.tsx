@@ -1,7 +1,7 @@
 import React from 'react';
 import { PersonalExpenseRow } from '../src/components/PersonalExpenseRow';
 import { LogExpenseModal } from '../src/components/LogExpenseModal';
-import type { PersonalExpense } from '../src/types/personalExpense';
+import type { PersonalExpense, PersonalCategory } from '../src/types/personalExpense';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -94,5 +94,48 @@ describe('Personal Expense UI Components', () => {
     expect(element.props.visible).toBe(true);
     expect(element.props.userId).toBe('user-test-1');
     expect(element.props.initialExpense?.title).toBe('Ride to Megenagna');
+  });
+
+  it('supports custom categories in PersonalExpenseRow and LogExpenseModal', () => {
+    const customCategories: PersonalCategory[] = [
+      {
+        id: 'cat-gym',
+        user_id: 'user-xyz',
+        name: 'Gym',
+        icon: 'activity',
+        color: '#059669',
+        bg_color: '#D1FAE5',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const gymExpense: PersonalExpense = {
+      ...sampleExpense,
+      category: 'Gym',
+      title: 'Monthly membership',
+    };
+
+    const row = (
+      <PersonalExpenseRow
+        expense={gymExpense}
+        customCategories={customCategories}
+      />
+    );
+    expect(row).toBeDefined();
+    expect(row.props.expense.category).toBe('Gym');
+    expect(row.props.customCategories).toHaveLength(1);
+
+    const modal = (
+      <LogExpenseModal
+        visible={true}
+        onClose={jest.fn()}
+        onSaved={jest.fn()}
+        userId="user-xyz"
+        customCategories={customCategories}
+        onCategoryCreated={jest.fn()}
+      />
+    );
+    expect(modal).toBeDefined();
+    expect(modal.props.customCategories?.[0].name).toBe('Gym');
   });
 });

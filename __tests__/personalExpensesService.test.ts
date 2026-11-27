@@ -3,17 +3,22 @@ import {
   cachePersonalExpenses,
   getCachedPersonalExpenses,
   clearCachedPersonalExpenses,
+  cachePersonalCategories,
+  getCachedPersonalCategories,
+  clearCachedPersonalCategories,
 } from '../src/services/offlineStorage';
 import {
   getOfflinePersonalExpenses,
   flushOfflinePersonalExpenses,
 } from '../src/services/offlineQueue';
 import {
+  createPersonalCategory,
   createPersonalExpense,
+  fetchPersonalCategories,
   fetchPersonalExpenses,
 } from '../src/services/personalExpenses';
 import { getSupabaseClient } from '../src/lib/supabase';
-import type { PersonalExpense } from '../src/types/personalExpense';
+import type { PersonalExpense, PersonalCategory } from '../src/types/personalExpense';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
@@ -170,5 +175,57 @@ describe('personalExpensesService & offline partitioning', () => {
 
     const queuedAfter = await getOfflinePersonalExpenses(userId);
     expect(queuedAfter).toHaveLength(0);
+  });
+
+  it('strictly isolates cached personal categories by userId', async () => {
+    const userA = 'user-cat-a';
+    const userB = 'user-cat-b';
+
+    const catsA: PersonalCategory[] = [
+      {
+        id: 'cat-1',
+        user_id: userA,
+        name: 'Gym',
+        icon: 'activity',
+        color: '#0284C7',
+        bg_color: '#E0F2FE',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    const catsB: PersonalCategory[] = [
+      {
+        id: 'cat-2',
+        user_id: userB,
+        name: 'Loan Repayment',
+        icon: 'dollar-sign',
+        color: '#E11D48',
+        bg_color: '#FFE4E6',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    await cachePersonalCategories(userA, catsA);
+    await cachePersonalCategories(userB, catsB);
+
+    const cachedA = await getCachedPersonalCategories<PersonalCategory>(userA);
+    expect(cachedA).toHaveLength(1);
+    expect(cachedA?.[0].name).toBe('Gym');
+
+    const cachedB = await getCachedPersonalCategories<PersonalCategory>(userB);
+    expect(cachedB).toHaveLength(1);
+    expect(cachedB?.[0].name).toBe('Loan Repayment');
+
+    await clearCachedPersonalCategories(userA);
+    expect(await getCachedPersonalCategories(userA)).toBeNull();
+    expect(await getCachedPersonalCategories(userB)).toHaveLength(1);
+  });
+
+  it('rejects empty category name on creation', async () => {
+    await expect(
+      createPersonalCategory('user-1', {
+        name: '   ',
+      })
+    ).rejects.toThrow('Category name is required');
   });
 });

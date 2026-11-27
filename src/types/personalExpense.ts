@@ -14,11 +14,28 @@ export type ExpenseCategoryKey =
 
 export type PaymentMethod = 'cash' | 'telebirr' | 'cbe_birr' | 'bank' | 'other';
 
+export interface PersonalCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  bg_color: string;
+  created_at: string;
+}
+
+export interface PersonalCategoryDraft {
+  name: string;
+  icon?: keyof typeof Feather.glyphMap;
+  color?: string;
+  bgColor?: string;
+}
+
 export interface PersonalExpense {
   id: string;
   user_id: string;
   amount_santim: number;
-  category: ExpenseCategoryKey;
+  category: ExpenseCategoryKey | (string & {});
   title: string;
   note: string;
   expense_date: string; // YYYY-MM-DD in Africa/Addis_Ababa
@@ -30,7 +47,7 @@ export interface PersonalExpense {
 
 export interface PersonalExpenseDraft {
   amountSantim: number;
-  category: ExpenseCategoryKey;
+  category: ExpenseCategoryKey | (string & {});
   title: string;
   note?: string;
   expenseDate: string; // YYYY-MM-DD
@@ -137,3 +154,74 @@ export const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: keyof t
   { key: 'bank', label: 'Bank Transfer', icon: 'send' },
   { key: 'other', label: 'Other', icon: 'check-circle' },
 ];
+
+export const CATEGORY_COLOR_PRESETS: { color: string; bgColor: string; label: string }[] = [
+  { color: '#0284C7', bgColor: '#E0F2FE', label: 'Blue' },
+  { color: '#059669', bgColor: '#D1FAE5', label: 'Emerald' },
+  { color: '#7C3AED', bgColor: '#EDE9FE', label: 'Purple' },
+  { color: '#E11D48', bgColor: '#FFE4E6', label: 'Rose' },
+  { color: '#D97706', bgColor: '#FEF3C7', label: 'Amber' },
+  { color: '#0891B2', bgColor: '#CFFAFE', label: 'Cyan' },
+  { color: '#4F46E5', bgColor: '#EEF2FF', label: 'Indigo' },
+  { color: '#475569', bgColor: '#F1F5F9', label: 'Slate' },
+];
+
+export const CATEGORY_ICON_PRESETS: (keyof typeof Feather.glyphMap)[] = [
+  'tag',
+  'activity',
+  'heart',
+  'book',
+  'gift',
+  'tool',
+  'truck',
+  'briefcase',
+  'home',
+  'smile',
+  'star',
+  'dollar-sign',
+];
+
+export function getCategoryMeta(
+  categoryKey: string,
+  customCategories?: PersonalCategory[]
+): {
+  key: string;
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  bgColor: string;
+} {
+  const std = EXPENSE_CATEGORIES[categoryKey as ExpenseCategoryKey];
+  if (std) {
+    return {
+      key: std.key,
+      label: std.label,
+      icon: std.icon,
+      color: std.color,
+      bgColor: std.bgColor,
+    };
+  }
+
+  if (customCategories && customCategories.length > 0) {
+    const found = customCategories.find(
+      (c) => c.name.toLowerCase() === categoryKey.toLowerCase() || c.id === categoryKey
+    );
+    if (found) {
+      return {
+        key: found.name,
+        label: found.name,
+        icon: found.icon || 'tag',
+        color: found.color || '#0284C7',
+        bgColor: found.bg_color || '#E0F2FE',
+      };
+    }
+  }
+
+  return {
+    key: categoryKey,
+    label: categoryKey,
+    icon: 'tag',
+    color: '#475569',
+    bgColor: '#F1F5F9',
+  };
+}

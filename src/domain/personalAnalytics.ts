@@ -1,14 +1,19 @@
+import type Feather from '@expo/vector-icons/Feather';
 import { formatBillMonthLabel, getAddisAbabaDateString, shiftYearMonth } from './billing';
 import { formatEtb } from '../lib/money';
 import {
   EXPENSE_CATEGORIES,
-  type ExpenseCategoryKey,
+  getCategoryMeta,
+  type PersonalCategory,
   type PersonalExpense,
 } from '../types/personalExpense';
 
 export interface MonthlyCategoryStats {
-  category: ExpenseCategoryKey;
+  category: string;
   label: string;
+  icon: keyof typeof Feather.glyphMap;
+  color: string;
+  bgColor: string;
   totalSantim: number;
   count: number;
   pctOfTotal: number;
@@ -66,7 +71,8 @@ export function getAvailableExpenseMonths(
 export function computeMonthlyPersonalAnalytics(
   expenses: PersonalExpense[],
   targetMonth: string,
-  todayDate: string = getAddisAbabaDateString()
+  todayDate: string = getAddisAbabaDateString(),
+  customCategories: PersonalCategory[] = []
 ): PersonalMonthlyAnalytics {
   const previousMonth = shiftYearMonth(targetMonth, -1);
   const monthLabel = formatBillMonthLabel(targetMonth);
@@ -109,7 +115,7 @@ export function computeMonthlyPersonalAnalytics(
   const projectedMonthEndSantim = dailyAverageSantim * totalDaysInMonth;
 
   // Previous month category maps
-  const prevCategoryTotals = new Map<ExpenseCategoryKey, number>();
+  const prevCategoryTotals = new Map<string, number>();
   for (const e of previousExpenses) {
     prevCategoryTotals.set(
       e.category,
@@ -118,8 +124,8 @@ export function computeMonthlyPersonalAnalytics(
   }
 
   // Current month category maps
-  const currentCategoryTotals = new Map<ExpenseCategoryKey, number>();
-  const currentCategoryCounts = new Map<ExpenseCategoryKey, number>();
+  const currentCategoryTotals = new Map<string, number>();
+  const currentCategoryCounts = new Map<string, number>();
   for (const e of currentExpenses) {
     currentCategoryTotals.set(
       e.category,
@@ -131,9 +137,17 @@ export function computeMonthlyPersonalAnalytics(
     );
   }
 
-  const categories: MonthlyCategoryStats[] = (
-    Object.keys(EXPENSE_CATEGORIES) as ExpenseCategoryKey[]
-  ).map((catKey) => {
+  const allCategoryKeys = Array.from(
+    new Set<string>([
+      ...Object.keys(EXPENSE_CATEGORIES),
+      ...customCategories.map((c) => c.name),
+      ...currentCategoryTotals.keys(),
+      ...prevCategoryTotals.keys(),
+    ])
+  );
+
+  const categories: MonthlyCategoryStats[] = allCategoryKeys.map((catKey) => {
+    const meta = getCategoryMeta(catKey, customCategories);
     const catTotal = currentCategoryTotals.get(catKey) ?? 0;
     const catCount = currentCategoryCounts.get(catKey) ?? 0;
     const prevCatTotal = prevCategoryTotals.get(catKey) ?? 0;
@@ -153,7 +167,10 @@ export function computeMonthlyPersonalAnalytics(
 
     return {
       category: catKey,
-      label: EXPENSE_CATEGORIES[catKey]?.label ?? catKey,
+      label: meta.label,
+      icon: meta.icon,
+      color: meta.color,
+      bgColor: meta.bgColor,
       totalSantim: catTotal,
       count: catCount,
       pctOfTotal,
@@ -254,6 +271,24 @@ export function computeMonthlyPersonalAnalytics(
       body: `Logged coffee and quick snacks ${coffeeCat.count} times (${formatEtb(coffeeCat.totalSantim)}).`,
       metric: `${coffeeCat.count}x`,
     });
+  }
+
+  // Frequency in custom / other categories
+  for (const cat of categories) {
+    if (
+      !['mobile', 'transport', 'food_coffee'].includes(cat.category) &&
+      cat.count >= 4 &&
+      cat.totalSantim > 0
+    ) {
+      insights.push({
+        id: `frequent-${cat.category}`,
+        type: 'frequent',
+        severity: 'info',
+        title: `Regular ${cat.label}`,
+        body: `Logged ${cat.label} ${cat.count} times this month (${formatEtb(cat.totalSantim)} total).`,
+        metric: `${cat.count}x`,
+      });
+    }
   }
 
   // 4. Large Single Splurge

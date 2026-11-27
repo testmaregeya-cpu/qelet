@@ -17,14 +17,19 @@ import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
 import { parseEtbToSantim, formatSantimForInput } from '../lib/money';
 import {
+  createPersonalCategory,
   createPersonalExpense,
   updatePersonalExpense,
 } from '../services/personalExpenses';
 import {
+  CATEGORY_COLOR_PRESETS,
+  CATEGORY_ICON_PRESETS,
   EXPENSE_CATEGORIES,
+  getCategoryMeta,
   PAYMENT_METHODS,
   type ExpenseCategoryKey,
   type PaymentMethod,
+  type PersonalCategory,
   type PersonalExpense,
 } from '../types/personalExpense';
 
@@ -34,6 +39,8 @@ export interface LogExpenseModalProps {
   onSaved: (expense: PersonalExpense) => void;
   userId: string;
   initialExpense?: PersonalExpense | null;
+  customCategories?: PersonalCategory[];
+  onCategoryCreated?: (newCategory: PersonalCategory) => void;
 }
 
 function getTodayIsoDate(): string {
@@ -60,6 +67,8 @@ interface LogExpenseFormProps {
   onSaved: (expense: PersonalExpense) => void;
   userId: string;
   initialExpense?: PersonalExpense | null;
+  customCategories?: PersonalCategory[];
+  onCategoryCreated?: (newCategory: PersonalCategory) => void;
 }
 
 const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
@@ -67,6 +76,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   onSaved,
   userId,
   initialExpense,
+  customCategories = [],
+  onCategoryCreated,
 }) => {
   const { palette } = useTheme();
 
@@ -75,7 +86,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   const [amountEtb, setAmountEtb] = useState(() =>
     initialExpense ? formatSantimForInput(initialExpense.amount_santim) : ''
   );
-  const [category, setCategory] = useState<ExpenseCategoryKey>(() =>
+  const [category, setCategory] = useState<string>(() =>
     initialExpense ? initialExpense.category : 'transport'
   );
   const [title, setTitle] = useState(() => (initialExpense ? initialExpense.title : ''));
@@ -89,7 +100,21 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeCategoryMeta = EXPENSE_CATEGORIES[category] ?? EXPENSE_CATEGORIES.other;
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [selectedPresetColor, setSelectedPresetColor] = useState(CATEGORY_COLOR_PRESETS[0]);
+  const [selectedPresetIcon, setSelectedPresetIcon] = useState<keyof typeof Feather.glyphMap>('tag');
+  const [creatingCategoryLoading, setCreatingCategoryLoading] = useState(false);
+  const [createCategoryError, setCreateCategoryError] = useState<string | null>(null);
+
+  const activeCategoryMeta = useMemo(() => {
+    return getCategoryMeta(category, customCategories);
+  }, [category, customCategories]);
+
+  const activePresets = useMemo(() => {
+    const std = EXPENSE_CATEGORIES[category as ExpenseCategoryKey];
+    return std ? std.popularPresets : [];
+  }, [category]);
 
   const handleSelectPreset = (preset: string) => {
     triggerHaptic('selection');
@@ -97,6 +122,37 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
     const match = preset.match(/(\d+)\s*ETB/i);
     if (match && !amountEtb) {
       setAmountEtb(match[1]);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const clean = newCatName.trim();
+    if (!clean) {
+      setCreateCategoryError('Please enter a category name');
+      return;
+    }
+    setCreatingCategoryLoading(true);
+    setCreateCategoryError(null);
+    triggerHaptic('impact');
+
+    try {
+      const created = await createPersonalCategory(userId, {
+        name: clean,
+        icon: selectedPresetIcon,
+        color: selectedPresetColor.color,
+        bgColor: selectedPresetColor.bgColor,
+      });
+      triggerHaptic('success');
+      onCategoryCreated?.(created);
+      setCategory(created.name);
+      setIsCreatingCategory(false);
+      setNewCatName('');
+    } catch (err) {
+      setCreateCategoryError(
+        err instanceof Error ? err.message : 'Failed to create category'
+      );
+    } finally {
+      setCreatingCategoryLoading(false);
     }
   };
 
@@ -266,14 +322,75 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
         </View>
 
         {/* Category Selector */}
-        <Text style={[styles.sectionLabel, { color: palette.textMuted }]}>
-          CATEGORY
-        </Text>
+        <View style={styles.categorySectionHeader}>
+          <Text style={[styles.sectionLabel, { color: palette.textMuted, marginBottom: 0 }]}>
+            CATEGORY
+          </Text>
+          <Pressable
+            testID="toggle-new-category-btn"
+            style={styles.newCatLink}
+            onPress={() => {
+              triggerHaptic('selection');
+              setIsCreatingCategory((prev) => !prev);
+            }}
+          >
+            <Feather
+              name={isCreatingCategory ? 'x-circle' : 'plus-circle'}
+              size={13}
+              color={palette.primary}
+            />
+            <Text style={[styles.newCatLinkText, { color: palette.primary }]}>
+              {isCreatingCategory ? 'Cancel' : 'New Category'}
+            </Text>
+          </Pressable>
+        </View>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoryScroll}
         >
+          {/* Custom Categories First */}
+          {customCategories.map((custom) => {
+            const isSelected =
+              category.toLowerCase() === custom.name.toLowerCase() || category === custom.id;
+            return (
+              <Pressable
+                key={custom.id}
+                testID={`custom-cat-chip-${custom.name}`}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: isSelected ? custom.bg_color : palette.surface,
+                    borderColor: isSelected ? custom.color : palette.border,
+                  },
+                ]}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setCategory(custom.name);
+                }}
+              >
+                <Feather
+                  name={custom.icon || 'tag'}
+                  size={15}
+                  color={isSelected ? custom.color : palette.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.categoryChipText,
+                    {
+                      color: isSelected ? custom.color : palette.textPrimary,
+                      fontFamily: isSelected ? Fonts.sansSemi : Fonts.sans,
+                    },
+                  ]}
+                >
+                  {custom.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          {/* Standard Predefined Categories */}
           {CATEGORY_KEYS.map((catKey) => {
             const meta = EXPENSE_CATEGORIES[catKey];
             const isSelected = category === catKey;
@@ -291,7 +408,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                 onPress={() => {
                   triggerHaptic('selection');
                   setCategory(catKey);
-                  if (activeCategoryMeta.popularPresets.includes(title)) {
+                  if (activePresets.includes(title)) {
                     setTitle('');
                   }
                 }}
@@ -317,14 +434,161 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
           })}
         </ScrollView>
 
+        {/* Inline Custom Category Creator Card */}
+        {isCreatingCategory && (
+          <View
+            testID="create-category-card"
+            style={[
+              styles.createCatCard,
+              { backgroundColor: palette.cardElevated, borderColor: palette.border },
+            ]}
+          >
+            <View style={styles.createCatHeader}>
+              <Text style={[styles.createCatTitle, { color: palette.textPrimary }]}>
+                New Custom Category
+              </Text>
+              <Pressable onPress={() => setIsCreatingCategory(false)} hitSlop={8}>
+                <Feather name="x" size={15} color={palette.textMuted} />
+              </Pressable>
+            </View>
+
+            <TextInput
+              testID="new-category-name-input"
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: palette.surface,
+                  borderColor: palette.border,
+                  color: palette.textPrimary,
+                  marginBottom: Space.s10,
+                },
+              ]}
+              placeholder="e.g. Gym, Church / Tithe, Pet Care, Repairs"
+              placeholderTextColor={palette.textMuted}
+              value={newCatName}
+              onChangeText={(val) => {
+                setNewCatName(val);
+                setCreateCategoryError(null);
+              }}
+              autoFocus
+            />
+
+            {/* Color Presets */}
+            <Text style={[styles.subSectionLabel, { color: palette.textMuted }]}>
+              CATEGORY COLOR
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.colorPresetsRow}
+            >
+              {CATEGORY_COLOR_PRESETS.map((cp) => {
+                const isPicked = selectedPresetColor.color === cp.color;
+                return (
+                  <Pressable
+                    key={cp.color}
+                    style={[
+                      styles.colorBubble,
+                      { backgroundColor: cp.color },
+                      isPicked && styles.colorBubbleSelected,
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedPresetColor(cp);
+                    }}
+                  >
+                    {isPicked && <Feather name="check" size={12} color="#FFFFFF" />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* Icon Presets */}
+            <Text
+              style={[
+                styles.subSectionLabel,
+                { color: palette.textMuted, marginTop: Space.s8 },
+              ]}
+            >
+              CATEGORY ICON
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.iconPresetsRow}
+            >
+              {CATEGORY_ICON_PRESETS.map((ic) => {
+                const isPicked = selectedPresetIcon === ic;
+                return (
+                  <Pressable
+                    key={ic}
+                    style={[
+                      styles.iconBubble,
+                      {
+                        backgroundColor: isPicked
+                          ? selectedPresetColor.bgColor
+                          : palette.surface,
+                        borderColor: isPicked
+                          ? selectedPresetColor.color
+                          : palette.border,
+                      },
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('selection');
+                      setSelectedPresetIcon(ic);
+                    }}
+                  >
+                    <Feather
+                      name={ic}
+                      size={15}
+                      color={isPicked ? selectedPresetColor.color : palette.textMuted}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {createCategoryError && (
+              <Text style={styles.catErrorText}>{createCategoryError}</Text>
+            )}
+
+            <Pressable
+              testID="save-custom-category-btn"
+              disabled={creatingCategoryLoading}
+              style={[
+                styles.createCatSaveBtn,
+                {
+                  backgroundColor: selectedPresetColor.color,
+                  opacity: creatingCategoryLoading ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleCreateCategory}
+            >
+              {creatingCategoryLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <View style={styles.btnInner}>
+                  <Feather
+                    name="check"
+                    size={14}
+                    color="#FFFFFF"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.createCatSaveBtnText}>Save & Select Category</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        )}
+
         {/* Quick Presets */}
-        {activeCategoryMeta.popularPresets.length > 0 && (
+        {activePresets.length > 0 && (
           <View style={styles.presetsWrap}>
             <Text style={[styles.subSectionLabel, { color: palette.textMuted }]}>
               POPULAR IN {activeCategoryMeta.label.toUpperCase()}
             </Text>
             <View style={styles.presetChipsRow}>
-              {activeCategoryMeta.popularPresets.map((preset) => (
+              {activePresets.map((preset) => (
                 <Pressable
                   key={preset}
                   style={[
@@ -342,7 +606,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                     style={[
                       styles.presetChipText,
                       {
-                        color: title === preset ? activeCategoryMeta.color : palette.textPrimary,
+                        color:
+                          title === preset ? activeCategoryMeta.color : palette.textPrimary,
                       },
                     ]}
                   >
@@ -369,7 +634,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                 color: palette.textPrimary,
               },
             ]}
-            placeholder={`e.g. ${activeCategoryMeta.popularPresets[0] ?? 'Expense'}`}
+            placeholder={`e.g. ${activePresets[0] ?? activeCategoryMeta.label ?? 'Expense'}`}
             placeholderTextColor={palette.textMuted}
             value={title}
             onChangeText={(val) => {
@@ -573,6 +838,8 @@ export const LogExpenseModal: React.FC<LogExpenseModalProps> = ({
   onSaved,
   userId,
   initialExpense,
+  customCategories = [],
+  onCategoryCreated,
 }) => {
   return (
     <Modal
@@ -593,6 +860,8 @@ export const LogExpenseModal: React.FC<LogExpenseModalProps> = ({
             onSaved={onSaved}
             userId={userId}
             initialExpense={initialExpense}
+            customCategories={customCategories}
+            onCategoryCreated={onCategoryCreated}
           />
         ) : null}
       </KeyboardAvoidingView>
@@ -821,5 +1090,85 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: Fonts.sansSemi,
     fontSize: 15,
+  },
+  categorySectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Space.s8,
+  },
+  newCatLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  newCatLinkText: {
+    fontFamily: Fonts.sansMedium,
+    fontSize: 12,
+  },
+  createCatCard: {
+    padding: Space.s12,
+    borderRadius: Radius.card,
+    borderWidth: Hairline,
+    marginBottom: Space.s14,
+  },
+  createCatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Space.s8,
+  },
+  createCatTitle: {
+    fontFamily: Fonts.sansSemi,
+    fontSize: 13,
+  },
+  colorPresetsRow: {
+    flexDirection: 'row',
+    gap: Space.s8,
+    paddingVertical: Space.s4,
+  },
+  colorBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorBubbleSelected: {
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  iconPresetsRow: {
+    flexDirection: 'row',
+    gap: Space.s8,
+    paddingVertical: Space.s4,
+  },
+  iconBubble: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.control,
+    borderWidth: Hairline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catErrorText: {
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    color: '#DC2626',
+    marginTop: Space.s6,
+  },
+  createCatSaveBtn: {
+    height: 38,
+    borderRadius: Radius.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Space.s10,
+  },
+  createCatSaveBtnText: {
+    color: '#FFFFFF',
+    fontFamily: Fonts.sansSemi,
+    fontSize: 13,
   },
 });

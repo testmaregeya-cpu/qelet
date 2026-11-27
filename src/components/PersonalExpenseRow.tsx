@@ -5,8 +5,9 @@ import { useTheme } from '../theme/ThemeContext';
 import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { formatEtb } from '../lib/money';
 import {
-  EXPENSE_CATEGORIES,
+  getCategoryMeta,
   PAYMENT_METHODS,
+  type PersonalCategory,
   type PersonalExpense,
 } from '../types/personalExpense';
 
@@ -14,16 +15,18 @@ export interface PersonalExpenseRowProps {
   expense: PersonalExpense;
   onPress?: (expense: PersonalExpense) => void;
   onDelete?: (expense: PersonalExpense) => void;
+  customCategories?: PersonalCategory[];
 }
 
 export const PersonalExpenseRow: React.FC<PersonalExpenseRowProps> = ({
   expense,
   onPress,
   onDelete,
+  customCategories,
 }) => {
   const { palette } = useTheme();
 
-  const categoryMeta = EXPENSE_CATEGORIES[expense.category] ?? EXPENSE_CATEGORIES.other;
+  const categoryMeta = getCategoryMeta(expense.category, customCategories);
   const paymentMeta = PAYMENT_METHODS.find((p) => p.key === expense.payment_method);
   const isPendingSync = expense.id.startsWith('local_');
 

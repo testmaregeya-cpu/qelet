@@ -169,4 +169,67 @@ describe('Personal Analytics domain engine', () => {
     expect(octAnalytics.momChangePct).toBeNull();
     expect(octAnalytics.totalSpentSantim).toBe(30000);
   });
+
+  test('seamlessly incorporates custom categories into deep analytics and surge detection', () => {
+    const customExpenses: PersonalExpense[] = [
+      {
+        id: 'oct-c1',
+        user_id: 'u-1',
+        amount_santim: 10000, // 100 ETB
+        category: 'Gym & Fitness',
+        title: 'Gym monthly pass',
+        note: '',
+        expense_date: '2026-10-02',
+        payment_method: 'telebirr',
+        created_at: '2026-10-02T10:00:00Z',
+        updated_at: '2026-10-02T10:00:00Z',
+      },
+      {
+        id: 'nov-c1',
+        user_id: 'u-1',
+        amount_santim: 25000, // 250 ETB (150% surge!)
+        category: 'Gym & Fitness',
+        title: 'Gym renewed + protein shake',
+        note: '',
+        expense_date: '2026-11-03',
+        payment_method: 'telebirr',
+        created_at: '2026-11-03T10:00:00Z',
+        updated_at: '2026-11-03T10:00:00Z',
+      },
+    ];
+
+    const customCategories = [
+      {
+        id: 'cat-gym',
+        user_id: 'u-1',
+        name: 'Gym & Fitness',
+        icon: 'activity' as const,
+        color: '#059669',
+        bg_color: '#D1FAE5',
+        created_at: '2026-10-01T00:00:00Z',
+      },
+    ];
+
+    const analytics = computeMonthlyPersonalAnalytics(
+      customExpenses,
+      '2026-11',
+      '2026-11-26',
+      customCategories
+    );
+
+    const gymStat = analytics.categories.find((c) => c.category === 'Gym & Fitness')!;
+    expect(gymStat).toBeDefined();
+    expect(gymStat.label).toBe('Gym & Fitness');
+    expect(gymStat.icon).toBe('activity');
+    expect(gymStat.color).toBe('#059669');
+    expect(gymStat.totalSantim).toBe(25000);
+    expect(gymStat.pctOfTotal).toBe(100);
+    expect(gymStat.changeFromLastMonthPct).toBe(150); // +150%
+
+    // Surge insight generated for custom category
+    const gymSurge = analytics.insights.find((i) => i.id === 'surge-Gym & Fitness');
+    expect(gymSurge).toBeDefined();
+    expect(gymSurge?.title).toBe('Gym & Fitness Spike');
+    expect(gymSurge?.metric).toBe('+150%');
+  });
 });

@@ -1,8 +1,15 @@
 import * as Crypto from 'expo-crypto';
 import { getSupabaseClient } from '../lib/supabase';
-import type { PersonalExpense, PersonalExpenseDraft } from '../types/personalExpense';
+import type {
+  PersonalCategory,
+  PersonalCategoryDraft,
+  PersonalExpense,
+  PersonalExpenseDraft,
+} from '../types/personalExpense';
 import {
+  cachePersonalCategories,
   cachePersonalExpenses,
+  getCachedPersonalCategories,
   getCachedPersonalExpenses,
 } from './offlineStorage';
 import {
@@ -12,6 +19,96 @@ import {
   type FlushResult,
   type OfflinePersonalExpenseMutation,
 } from './offlineQueue';
+
+export async function fetchPersonalCategories(userId: string): Promise<PersonalCategory[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('personal_categories')
+      .select('*')
+      .eq('user_id', userId)
+      .order('name', { ascending: true })
+      .returns<PersonalCategory[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const categories = data ?? [];
+    await cachePersonalCategories(userId, categories);
+    return categories;
+  } catch (err) {
+    if (isLikelyNetworkError(err)) {
+      const cached = await getCachedPersonalCategories<PersonalCategory>(userId);
+      if (cached) {
+        return cached;
+      }
+    }
+    throw err;
+  }
+}
+
+export async function createPersonalCategory(
+  userId: string,
+  draft: PersonalCategoryDraft
+): Promise<PersonalCategory> {
+  const cleanName = draft.name.trim();
+  if (!cleanName) {
+    throw new Error('Category name is required');
+  }
+
+  const supabase = getSupabaseClient();
+  const payload = {
+    user_id: userId,
+    name: cleanName,
+    icon: draft.icon ?? 'tag',
+    color: draft.color ?? '#0284C7',
+    bg_color: draft.bgColor ?? '#E0F2FE',
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('personal_categories')
+      .insert(payload)
+      .select()
+      .single<PersonalCategory>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const cached = (await getCachedPersonalCategories<PersonalCategory>(userId)) ?? [];
+    const nextCached = [
+      ...cached.filter((c) => c.name.toLowerCase() !== data.name.toLowerCase()),
+      data,
+    ];
+    nextCached.sort((a, b) => a.name.localeCompare(b.name));
+    await cachePersonalCategories(userId, nextCached);
+
+    return data;
+  } catch (err) {
+    if (isLikelyNetworkError(err)) {
+      const localCat: PersonalCategory = {
+        id: `local_cat_${Date.now()}`,
+        user_id: userId,
+        name: cleanName,
+        icon: draft.icon ?? 'tag',
+        color: draft.color ?? '#0284C7',
+        bg_color: draft.bgColor ?? '#E0F2FE',
+        created_at: new Date().toISOString(),
+      };
+      const cached = (await getCachedPersonalCategories<PersonalCategory>(userId)) ?? [];
+      const nextCached = [
+        ...cached.filter((c) => c.name.toLowerCase() !== localCat.name.toLowerCase()),
+        localCat,
+      ];
+      nextCached.sort((a, b) => a.name.localeCompare(b.name));
+      await cachePersonalCategories(userId, nextCached);
+      return localCat;
+    }
+    throw err;
+  }
+}
 
 export async function fetchPersonalExpenses(userId: string): Promise<PersonalExpense[]> {
   const supabase = getSupabaseClient();
