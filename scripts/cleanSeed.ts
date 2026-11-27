@@ -6,6 +6,7 @@ async function main() {
 DELETE FROM public.entry_lines WHERE id::text LIKE '00000000-0000-0000-5eed-%';
 DELETE FROM public.entries WHERE id::text LIKE '00000000-0000-0000-5eed-%';
 DELETE FROM public.shops WHERE id::text LIKE '00000000-0000-0000-5eed-%';
+DELETE FROM public.personal_expenses WHERE id::text LIKE '00000000-0000-0000-5eed-%';
 SET session_replication_role = 'origin';`;
 
   execSync(`npx supabase db query --remote "${sql.replace(/\r?\n/g, ' ')}" --yes`, { stdio: 'inherit' });
