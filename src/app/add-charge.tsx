@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import { ChargeLinesEditor } from '../components/ChargeLinesEditor';
 import { CreateShopModal } from '../components/CreateShopModal';
 import { DateStepperInput } from '../components/DateStepperInput';
@@ -25,7 +25,8 @@ import {
   shiftYearMonth,
   validateDateString,
 } from '../domain/billing';
-import { getQuickAddSuggestions, mergeItemSuggestions } from '../domain/dashboard';
+import { mergeItemSuggestions } from '../domain/dashboard';
+import { predictSmartChargeSuggestions } from '../domain/ml/ledgerMl';
 import {
   computeEditableLinesSummary,
   type EditableChargeLine,
@@ -81,6 +82,7 @@ export default function AddChargeScreen() {
     : params.presetCatalogItemId;
 
   const { loading, session, householdContext } = useSession();
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>(initialParamShopId ?? '');
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
@@ -226,8 +228,15 @@ export default function AddChargeScreen() {
   );
 
   const quickChips = useMemo(
-    () => getQuickAddSuggestions(priceMemory, catalogItems, categories, 8),
-    [priceMemory, catalogItems, categories]
+    () =>
+      predictSmartChargeSuggestions({
+        baseSuggestions: mergedSuggestions,
+        shopEntries,
+        currentLineItemNames: lines.map((l) => l.itemName),
+        targetDate: entryDate,
+        limit: 8,
+      }),
+    [mergedSuggestions, shopEntries, lines, entryDate]
   );
 
   const billResolution = useMemo(() => {
@@ -360,9 +369,13 @@ export default function AddChargeScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: palette.dangerLight }]}>
               <Feather name="alert-circle" size={16} color={palette.danger} />
@@ -636,6 +649,11 @@ export default function AddChargeScreen() {
                         <Text style={[styles.memoryPrice, { color: palette.primary }]}>
                           {formatEtb(item.unit_price_santim)}
                         </Text>
+                        {item.badgeHint ? (
+                          <Text style={[styles.memoryHint, { color: palette.textMuted }]}>
+                            · {item.badgeHint}
+                          </Text>
+                        ) : null}
                       </Pressable>
                     ))}
                   </View>
@@ -655,6 +673,7 @@ export default function AddChargeScreen() {
                   pendingRequestIdRef.current = null;
                   setLines((prev) => [...prev, makeEmptyEditableLine(prev.length)]);
                 }}
+                onInputFocus={handleInputFocus}
               />
 
               <View
@@ -677,6 +696,7 @@ export default function AddChargeScreen() {
                     },
                   ]}
                   value={note}
+                  onFocus={(e) => handleInputFocus(e.currentTarget)}
                   onChangeText={(text) => {
                     pendingRequestIdRef.current = null;
                     setNote(text);
@@ -827,6 +847,10 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 12,
     fontVariant: ['tabular-nums'],
+  },
+  memoryHint: {
+    fontFamily: Fonts.sans,
+    fontSize: 11,
   },
   grandTotalRow: {
     borderTopWidth: Hairline,

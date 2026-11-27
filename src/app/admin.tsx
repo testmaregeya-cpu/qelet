@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,6 +23,7 @@ import { triggerHaptic } from '../lib/haptics';
 import { parseEtbToSantim } from '../lib/money';
 import { isSuperAdmin } from '../lib/shopRules';
 import { buildEntriesCsv } from '../lib/statement';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import {
   exportHouseholdJsonAndShare,
   exportTextFileAndShare,
@@ -85,6 +85,7 @@ export default function AdminScreen() {
   const adminUser = householdContext
     ? isSuperAdmin(householdContext.currentMember.role)
     : false;
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   const loadAdminData = useCallback(async () => {
     if (!householdId || !adminUser) return;
@@ -357,11 +358,12 @@ export default function AdminScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
+          {...scrollViewHandlers}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -409,6 +411,7 @@ export default function AdminScreen() {
               onToggleCatalogItemArchived={(id, next) =>
                 void handleToggleCatalogItemArchived(id, next)
               }
+              onInputFocus={handleInputFocus}
             />
           ) : tab === 'shops' ? (
             <AdminShopsTab shops={shops} onManageShop={setSelectedShop} />

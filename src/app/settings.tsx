@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -15,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { LiveUpdateManager } from '../components/LiveUpdateManager';
 import { isSuperAdmin } from '../lib/shopRules';
@@ -50,6 +50,7 @@ const REMINDER_PRESETS = [
 export default function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useTheme();
   const { loading, session, householdContext, refreshHousehold } = useSession();
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   const [dailyEnabled, setDailyEnabled] = useState(true);
   const [reminderHour, setReminderHour] = useState(20);
@@ -258,9 +259,13 @@ export default function SettingsScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
         {error ? (
           <View style={[styles.feedbackBox, { backgroundColor: palette.dangerLight }]}>
             <Feather name="alert-circle" size={16} color={palette.danger} />
@@ -661,6 +666,7 @@ export default function SettingsScreen() {
                   },
                 ]}
                 value={newPin}
+                onFocus={(e) => handleInputFocus(e.currentTarget)}
                 onChangeText={setNewPin}
                 keyboardType="number-pad"
                 secureTextEntry

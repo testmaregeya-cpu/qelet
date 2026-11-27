@@ -19,6 +19,7 @@ interface ChargeLinesEditorProps {
   onUpdateLine: (key: string, patch: Partial<EditableChargeLine>) => void;
   onRemoveLine: (key: string) => void;
   onAddLine: () => void;
+  onInputFocus?: (node?: unknown) => void;
 }
 
 export function ChargeLinesEditor({
@@ -28,6 +29,7 @@ export function ChargeLinesEditor({
   onUpdateLine,
   onRemoveLine,
   onAddLine,
+  onInputFocus,
 }: ChargeLinesEditorProps) {
   const { palette } = useTheme();
 
@@ -84,6 +86,7 @@ export function ChargeLinesEditor({
                 },
               ]}
               value={line.itemName}
+              onFocus={(e) => onInputFocus?.(e.currentTarget)}
               onChangeText={(text) =>
                 onUpdateLine(line.key, { itemName: text, catalogItemId: null })
               }
@@ -142,6 +145,7 @@ export function ChargeLinesEditor({
                     },
                   ]}
                   value={line.quantity}
+                  onFocus={(e) => onInputFocus?.(e.currentTarget)}
                   onChangeText={(text) => onUpdateLine(line.key, { quantity: text })}
                   accessibilityLabel={`Item ${index + 1} quantity`}
                   keyboardType="decimal-pad"
@@ -164,6 +168,7 @@ export function ChargeLinesEditor({
                     },
                   ]}
                   value={line.unitPriceEtb}
+                  onFocus={(e) => onInputFocus?.(e.currentTarget)}
                   onChangeText={(text) => onUpdateLine(line.key, { unitPriceEtb: text })}
                   accessibilityLabel={`Item ${index + 1} unit price in ETB`}
                   keyboardType="decimal-pad"

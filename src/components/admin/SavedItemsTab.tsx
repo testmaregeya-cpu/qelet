@@ -23,6 +23,7 @@ interface SavedItemsTabProps {
   onSelectCategoryId: (id: string | null) => void;
   onCreateCatalogItem: () => void;
   onToggleCatalogItemArchived: (itemId: string, nextArchived: boolean) => void;
+  onInputFocus?: (node?: unknown) => void;
 }
 
 export function SavedItemsTab({
@@ -43,6 +44,7 @@ export function SavedItemsTab({
   onSelectCategoryId,
   onCreateCatalogItem,
   onToggleCatalogItemArchived,
+  onInputFocus,
 }: SavedItemsTabProps) {
   const { palette } = useTheme();
   const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
@@ -82,6 +84,7 @@ export function SavedItemsTab({
                 },
               ]}
               value={newCategoryName}
+              onFocus={(e) => onInputFocus?.(e.currentTarget)}
               onChangeText={onChangeNewCategoryName}
               accessibilityLabel="New item group name"
               placeholder="Groceries, bakery, dairy"
@@ -153,6 +156,7 @@ export function SavedItemsTab({
               },
             ]}
             value={newItemName}
+            onFocus={(e) => onInputFocus?.(e.currentTarget)}
             onChangeText={onChangeNewItemName}
             accessibilityLabel="Quick-add item name"
             placeholder="Item name (e.g. Milk, Sugar, Bread)"
@@ -170,6 +174,7 @@ export function SavedItemsTab({
                 },
               ]}
               value={newItemUnit}
+              onFocus={(e) => onInputFocus?.(e.currentTarget)}
               onChangeText={onChangeNewItemUnit}
               accessibilityLabel="Default unit"
               placeholder="Unit (pcs/kg/L)"
@@ -187,6 +192,7 @@ export function SavedItemsTab({
                 },
               ]}
               value={newItemPriceEtb}
+              onFocus={(e) => onInputFocus?.(e.currentTarget)}
               onChangeText={onChangeNewItemPriceEtb}
               accessibilityLabel="Usual price in ETB"
               keyboardType="decimal-pad"

@@ -8,8 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -17,6 +17,11 @@ import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
 import { isLikelyNetworkError } from '../services/offlineQueue';
 import { createShop } from '../services/shops';
+import {
+  computeKeyboardSheetStyle,
+  useKeyboardAwareScroll,
+  useSafeAreaInsetsSafe,
+} from '../lib/useKeyboardInset';
 import type { Shop } from '../types/phase1';
 
 export interface CreateShopModalProps {
@@ -51,6 +56,24 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
+
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsetsSafe();
+  const { scrollRef, keyboardHeight, handleInputFocus, scrollViewHandlers } =
+    useKeyboardAwareScroll();
+
+  const sheetLayout = useMemo(
+    () =>
+      computeKeyboardSheetStyle(
+        keyboardHeight,
+        windowHeight,
+        insets.top,
+        insets.bottom,
+        0.85
+      ),
+    [keyboardHeight, windowHeight, insets.top, insets.bottom]
+  );
 
   const trimmed = name.trim();
   const isDuplicate = useMemo(() => {
@@ -106,19 +129,26 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
     <Modal
       visible={visible}
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       animationType="slide"
       onRequestClose={handleClose}
     >
       <KeyboardAvoidingView
         style={styles.overlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <Pressable style={styles.backdrop} onPress={handleClose} />
 
         <View
           style={[
             styles.sheet,
-            { backgroundColor: palette.surface, borderTopColor: palette.border },
+            {
+              backgroundColor: palette.surface,
+              borderTopColor: palette.border,
+              maxHeight: sheetLayout.maxHeight,
+              paddingBottom: sheetLayout.paddingBottom,
+            },
           ]}
         >
           <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
@@ -148,8 +178,10 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
           </View>
 
           <ScrollView
+            ref={scrollRef}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.body}
+            {...scrollViewHandlers}
           >
             {/* Presets */}
             <View style={styles.presetsBlock}>
@@ -209,13 +241,21 @@ export const CreateShopModal: React.FC<CreateShopModalProps> = ({
                     backgroundColor: palette.background,
                     borderColor: isDuplicate
                       ? palette.danger
-                      : palette.border,
+                      : inputFocused
+                      ? palette.primary
+                      : palette.borderStrong,
+                    borderWidth: inputFocused || isDuplicate ? 1.5 : 1,
                     color: palette.textPrimary,
                   },
                 ]}
                 placeholder="e.g. Abebe Suq, Bole Mini Market"
                 placeholderTextColor={palette.textMuted}
                 value={name}
+                onFocus={(e) => {
+                  setInputFocused(true);
+                  handleInputFocus(e.currentTarget);
+                }}
+                onBlur={() => setInputFocused(false)}
                 onChangeText={(val) => {
                   setName(val);
                   if (error) setError(null);
@@ -352,8 +392,6 @@ const styles = StyleSheet.create({
     borderTopWidth: Hairline,
     paddingTop: Space.s12,
     paddingHorizontal: Space.s20,
-    paddingBottom: Platform.OS === 'ios' ? Space.s32 : Space.s24,
-    maxHeight: '85%',
   },
   handle: {
     width: 36,
@@ -428,9 +466,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 15,
     height: 48,
-    borderWidth: Hairline,
+    borderWidth: 1,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
   },
   errorHelper: {
     fontFamily: Fonts.sans,

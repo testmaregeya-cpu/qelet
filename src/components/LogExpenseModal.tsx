@@ -8,14 +8,20 @@ import {
   StyleSheet,
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { Space, Radius, Fonts, Hairline } from '../theme/tokens';
 import { triggerHaptic } from '../lib/haptics';
-import { parseEtbToSantim, formatSantimForInput } from '../lib/money';
+import { formatEtb, formatSantimForInput, parseEtbToSantim } from '../lib/money';
+import { predictPersonalExpenseDefaults } from '../domain/ml/personalMl';
+import {
+  computeKeyboardSheetStyle,
+  useKeyboardAwareScroll,
+  useSafeAreaInsetsSafe,
+} from '../lib/useKeyboardInset';
 import {
   createPersonalCategory,
   createPersonalExpense,
@@ -40,6 +46,7 @@ export interface LogExpenseModalProps {
   userId: string;
   initialExpense?: PersonalExpense | null;
   customCategories?: PersonalCategory[];
+  expenseHistory?: PersonalExpense[];
   onCategoryCreated?: (newCategory: PersonalCategory) => void;
 }
 
@@ -68,6 +75,7 @@ interface LogExpenseFormProps {
   userId: string;
   initialExpense?: PersonalExpense | null;
   customCategories?: PersonalCategory[];
+  expenseHistory?: PersonalExpense[];
   onCategoryCreated?: (newCategory: PersonalCategory) => void;
 }
 
@@ -77,6 +85,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   userId,
   initialExpense,
   customCategories = [],
+  expenseHistory = [],
   onCategoryCreated,
 }) => {
   const { palette } = useTheme();
@@ -99,6 +108,32 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [categoryManuallyPicked, setCategoryManuallyPicked] = useState(() =>
+    Boolean(initialExpense)
+  );
+  const [paymentManuallyPicked, setPaymentManuallyPicked] = useState(() =>
+    Boolean(initialExpense)
+  );
+  const [focusedField, setFocusedField] = useState<
+    'amount' | 'catName' | 'title' | 'date' | 'note' | null
+  >(null);
+
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsetsSafe();
+  const { scrollRef, keyboardHeight, handleInputFocus, scrollViewHandlers } =
+    useKeyboardAwareScroll();
+
+  const sheetLayout = useMemo(
+    () =>
+      computeKeyboardSheetStyle(
+        keyboardHeight,
+        windowHeight,
+        insets.top,
+        insets.bottom,
+        0.92
+      ),
+    [keyboardHeight, windowHeight, insets.top, insets.bottom]
+  );
 
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -106,6 +141,46 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
   const [selectedPresetIcon, setSelectedPresetIcon] = useState<keyof typeof Feather.glyphMap>('tag');
   const [creatingCategoryLoading, setCreatingCategoryLoading] = useState(false);
   const [createCategoryError, setCreateCategoryError] = useState<string | null>(null);
+
+  const mlPrediction = useMemo(() => {
+    if (isEditing || isCreatingCategory) return null;
+    return predictPersonalExpenseDefaults({
+      title,
+      note,
+      expenses: expenseHistory,
+      customCategories,
+    });
+  }, [isEditing, isCreatingCategory, title, note, expenseHistory, customCategories]);
+
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    setError(null);
+    if (!isEditing && !isCreatingCategory) {
+      const pred = predictPersonalExpenseDefaults({
+        title: val,
+        note,
+        expenses: expenseHistory,
+        customCategories,
+      });
+      if (pred && pred.categoryConfidence >= 0.72 && !categoryManuallyPicked) {
+        setCategory(pred.suggestedCategory);
+      }
+    }
+  };
+
+  const applyMlPrediction = () => {
+    if (!mlPrediction) return;
+    triggerHaptic('selection');
+    setCategory(mlPrediction.suggestedCategory);
+    setCategoryManuallyPicked(true);
+    if (mlPrediction.suggestedPaymentMethod) {
+      setPaymentMethod(mlPrediction.suggestedPaymentMethod);
+      setPaymentManuallyPicked(true);
+    }
+    if (!amountEtb.trim() && mlPrediction.suggestedAmountSantim) {
+      setAmountEtb(formatSantimForInput(mlPrediction.suggestedAmountSantim));
+    }
+  };
 
   const activeCategoryMeta = useMemo(() => {
     return getCategoryMeta(category, customCategories);
@@ -233,9 +308,16 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
     <View
       style={[
         styles.sheetContainer,
-        { backgroundColor: palette.cardElevated, borderColor: palette.border },
+        {
+          backgroundColor: palette.cardElevated,
+          borderColor: palette.border,
+          maxHeight: sheetLayout.maxHeight,
+          paddingBottom: sheetLayout.paddingBottom,
+        },
       ]}
     >
+      <View style={[styles.handle, { backgroundColor: palette.borderStrong }]} />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -256,7 +338,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
               {isEditing ? 'Edit Expense' : 'Log Personal Spend'}
             </Text>
             <Text style={[styles.headerSubtitle, { color: palette.textMuted }]}>
-              Private to you • Never shared with partner
+              Private to you · Never shared with partner
             </Text>
           </View>
         </View>
@@ -272,15 +354,20 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
       </View>
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.scrollBody}
+        {...scrollViewHandlers}
       >
         {/* Amount Input Hero */}
         <View
           style={[
             styles.amountCard,
-            { backgroundColor: palette.surface, borderColor: palette.border },
+            {
+              backgroundColor: palette.background,
+              borderColor: focusedField === 'amount' ? palette.primary : palette.borderStrong,
+              borderWidth: focusedField === 'amount' ? 1.5 : 1,
+            },
           ]}
         >
           <Text style={[styles.currencyLabel, { color: palette.textMuted }]}>
@@ -294,6 +381,11 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
               placeholderTextColor={palette.textMuted}
               keyboardType="decimal-pad"
               value={amountEtb}
+              onFocus={(e) => {
+                setFocusedField('amount');
+                handleInputFocus(e.currentTarget);
+              }}
+              onBlur={() => setFocusedField((prev) => (prev === 'amount' ? null : prev))}
               onChangeText={(val) => {
                 setAmountEtb(val);
                 setError(null);
@@ -323,8 +415,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
 
         {/* Category Selector */}
         <View style={styles.categorySectionHeader}>
-          <Text style={[styles.sectionLabel, { color: palette.textMuted, marginBottom: 0 }]}>
-            CATEGORY
+          <Text style={[styles.sectionLabel, { color: palette.textSecondary, marginBottom: 0 }]}>
+            Category
           </Text>
           <Pressable
             testID="toggle-new-category-btn"
@@ -368,6 +460,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                 onPress={() => {
                   triggerHaptic('selection');
                   setCategory(custom.name);
+                  setCategoryManuallyPicked(true);
                 }}
               >
                 <Feather
@@ -408,6 +501,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                 onPress={() => {
                   triggerHaptic('selection');
                   setCategory(catKey);
+                  setCategoryManuallyPicked(true);
                   if (activePresets.includes(title)) {
                     setTitle('');
                   }
@@ -440,7 +534,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
             testID="create-category-card"
             style={[
               styles.createCatCard,
-              { backgroundColor: palette.cardElevated, borderColor: palette.border },
+              { backgroundColor: palette.surface, borderColor: palette.borderStrong },
             ]}
           >
             <View style={styles.createCatHeader}>
@@ -457,8 +551,10 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
               style={[
                 styles.textInput,
                 {
-                  backgroundColor: palette.surface,
-                  borderColor: palette.border,
+                  backgroundColor: palette.background,
+                  borderColor:
+                    focusedField === 'catName' ? palette.primary : palette.borderStrong,
+                  borderWidth: focusedField === 'catName' ? 1.5 : 1,
                   color: palette.textPrimary,
                   marginBottom: Space.s10,
                 },
@@ -466,6 +562,11 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
               placeholder="e.g. Gym, Church / Tithe, Pet Care, Repairs"
               placeholderTextColor={palette.textMuted}
               value={newCatName}
+              onFocus={(e) => {
+                setFocusedField('catName');
+                handleInputFocus(e.currentTarget);
+              }}
+              onBlur={() => setFocusedField((prev) => (prev === 'catName' ? null : prev))}
               onChangeText={(val) => {
                 setNewCatName(val);
                 setCreateCategoryError(null);
@@ -474,8 +575,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
             />
 
             {/* Color Presets */}
-            <Text style={[styles.subSectionLabel, { color: palette.textMuted }]}>
-              CATEGORY COLOR
+            <Text style={[styles.subSectionLabel, { color: palette.textSecondary }]}>
+              Category color
             </Text>
             <ScrollView
               horizontal
@@ -507,10 +608,10 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
             <Text
               style={[
                 styles.subSectionLabel,
-                { color: palette.textMuted, marginTop: Space.s8 },
+                { color: palette.textSecondary, marginTop: Space.s8 },
               ]}
             >
-              CATEGORY ICON
+              Category icon
             </Text>
             <ScrollView
               horizontal
@@ -584,8 +685,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
         {/* Quick Presets */}
         {activePresets.length > 0 && (
           <View style={styles.presetsWrap}>
-            <Text style={[styles.subSectionLabel, { color: palette.textMuted }]}>
-              POPULAR IN {activeCategoryMeta.label.toUpperCase()}
+            <Text style={[styles.subSectionLabel, { color: palette.textSecondary }]}>
+              Popular in {activeCategoryMeta.label}
             </Text>
             <View style={styles.presetChipsRow}>
               {activePresets.map((preset) => (
@@ -621,33 +722,67 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
 
         {/* Custom Title Input */}
         <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: palette.textMuted }]}>
-            DESCRIPTION / ITEM
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            Description / Item
           </Text>
           <TextInput
             testID="expense-title-input"
             style={[
               styles.textInput,
               {
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
+                backgroundColor: palette.background,
+                borderColor: focusedField === 'title' ? palette.primary : palette.borderStrong,
+                borderWidth: focusedField === 'title' ? 1.5 : 1,
                 color: palette.textPrimary,
               },
             ]}
             placeholder={`e.g. ${activePresets[0] ?? activeCategoryMeta.label ?? 'Expense'}`}
             placeholderTextColor={palette.textMuted}
             value={title}
-            onChangeText={(val) => {
-              setTitle(val);
-              setError(null);
+            onFocus={(e) => {
+              setFocusedField('title');
+              handleInputFocus(e.currentTarget);
             }}
+            onBlur={() => setFocusedField((prev) => (prev === 'title' ? null : prev))}
+            onChangeText={handleTitleChange}
           />
+          {mlPrediction &&
+          (mlPrediction.suggestedCategory.toLowerCase() !== category.toLowerCase() ||
+            (mlPrediction.suggestedPaymentMethod &&
+              !paymentManuallyPicked &&
+              mlPrediction.suggestedPaymentMethod !== paymentMethod) ||
+            (!amountEtb.trim() && mlPrediction.suggestedAmountSantim !== null)) ? (
+            <Pressable
+              testID="ml-suggestion-pill"
+              style={({ pressed }) => [
+                styles.mlHintRow,
+                {
+                  backgroundColor: palette.primaryLight,
+                  borderColor: palette.primary,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+              onPress={applyMlPrediction}
+            >
+              <Feather name="zap" size={13} color={palette.primary} />
+              <Text style={[styles.mlHintText, { color: palette.primary }]} numberOfLines={1}>
+                Learned match: {mlPrediction.suggestedCategoryLabel}
+                {mlPrediction.suggestedPaymentMethod
+                  ? ` · ${PAYMENT_METHODS.find((m) => m.key === mlPrediction.suggestedPaymentMethod)?.label ?? mlPrediction.suggestedPaymentMethod}`
+                  : ''}
+                {!amountEtb.trim() && mlPrediction.suggestedAmountSantim
+                  ? ` · ~${formatEtb(mlPrediction.suggestedAmountSantim)}`
+                  : ''}
+              </Text>
+              <Text style={[styles.mlApplyLabel, { color: palette.primary }]}>Apply</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Payment Method Pills */}
         <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: palette.textMuted }]}>
-            PAID VIA
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            Paid via
           </Text>
           <View style={styles.paymentMethodsRow}>
             {PAYMENT_METHODS.map((pm) => {
@@ -665,6 +800,7 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
                   onPress={() => {
                     triggerHaptic('selection');
                     setPaymentMethod(pm.key);
+                    setPaymentManuallyPicked(true);
                   }}
                 >
                   <Feather
@@ -692,8 +828,8 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
 
         {/* Date Row */}
         <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: palette.textMuted }]}>
-            DATE
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            Date
           </Text>
           <View style={styles.dateRow}>
             <Pressable
@@ -756,12 +892,18 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
               style={[
                 styles.dateInput,
                 {
-                  backgroundColor: palette.surface,
-                  borderColor: palette.border,
+                  backgroundColor: palette.background,
+                  borderColor: focusedField === 'date' ? palette.primary : palette.borderStrong,
+                  borderWidth: focusedField === 'date' ? 1.5 : 1,
                   color: palette.textPrimary,
                 },
               ]}
               value={expenseDate}
+              onFocus={(e) => {
+                setFocusedField('date');
+                handleInputFocus(e.currentTarget);
+              }}
+              onBlur={() => setFocusedField((prev) => (prev === 'date' ? null : prev))}
               onChangeText={setExpenseDate}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={palette.textMuted}
@@ -771,21 +913,27 @@ const LogExpenseForm: React.FC<LogExpenseFormProps> = ({
 
         {/* Note Input */}
         <View style={styles.fieldGroup}>
-          <Text style={[styles.fieldLabel, { color: palette.textMuted }]}>
-            NOTE (OPTIONAL)
+          <Text style={[styles.fieldLabel, { color: palette.textSecondary }]}>
+            Note (optional)
           </Text>
           <TextInput
             style={[
               styles.textInput,
               {
-                backgroundColor: palette.surface,
-                borderColor: palette.border,
+                backgroundColor: palette.background,
+                borderColor: focusedField === 'note' ? palette.primary : palette.borderStrong,
+                borderWidth: focusedField === 'note' ? 1.5 : 1,
                 color: palette.textPrimary,
               },
             ]}
             placeholder="Add details (e.g. from Kazanchis to Bole)"
             placeholderTextColor={palette.textMuted}
             value={note}
+            onFocus={(e) => {
+              setFocusedField('note');
+              handleInputFocus(e.currentTarget);
+            }}
+            onBlur={() => setFocusedField((prev) => (prev === 'note' ? null : prev))}
             onChangeText={setNote}
           />
         </View>
@@ -839,6 +987,7 @@ export const LogExpenseModal: React.FC<LogExpenseModalProps> = ({
   userId,
   initialExpense,
   customCategories = [],
+  expenseHistory = [],
   onCategoryCreated,
 }) => {
   return (
@@ -846,11 +995,13 @@ export const LogExpenseModal: React.FC<LogExpenseModalProps> = ({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <Pressable style={styles.backdrop} onPress={onClose} />
         {visible ? (
@@ -861,6 +1012,7 @@ export const LogExpenseModal: React.FC<LogExpenseModalProps> = ({
             userId={userId}
             initialExpense={initialExpense}
             customCategories={customCategories}
+            expenseHistory={expenseHistory}
             onCategoryCreated={onCategoryCreated}
           />
         ) : null}
@@ -882,15 +1034,21 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,
     borderTopWidth: Hairline,
-    maxHeight: '92%',
-    paddingBottom: Platform.OS === 'ios' ? 34 : Space.s24,
+    paddingTop: Space.s12,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: Space.s4,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Space.s20,
-    paddingTop: Space.s20,
+    paddingTop: Space.s8,
     paddingBottom: Space.s12,
   },
   headerLeft: {
@@ -924,15 +1082,13 @@ const styles = StyleSheet.create({
   amountCard: {
     padding: Space.s16,
     borderRadius: Radius.card,
-    borderWidth: Hairline,
+    borderWidth: 1,
     alignItems: 'center',
     marginBottom: Space.s16,
   },
   currencyLabel: {
     fontFamily: Fonts.sansMedium,
     fontSize: 12,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
   amountInputRow: {
     marginVertical: Space.s8,
@@ -942,6 +1098,7 @@ const styles = StyleSheet.create({
     fontSize: 38,
     textAlign: 'center',
     minWidth: 160,
+    paddingVertical: 0,
     fontVariant: ['tabular-nums'],
   },
   quickAmountRow: {
@@ -960,15 +1117,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   sectionLabel: {
-    fontFamily: Fonts.sansSemi,
-    fontSize: 11,
-    letterSpacing: 0.6,
+    fontFamily: Fonts.sansMedium,
+    fontSize: 13,
     marginBottom: Space.s8,
   },
   subSectionLabel: {
-    fontFamily: Fonts.sansSemi,
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontFamily: Fonts.sansMedium,
+    fontSize: 12,
     marginBottom: Space.s6,
   },
   categoryScroll: {
@@ -1006,21 +1161,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   fieldGroup: {
-    marginBottom: Space.s14,
+    marginBottom: Space.s16,
   },
   fieldLabel: {
-    fontFamily: Fonts.sansSemi,
-    fontSize: 11,
-    letterSpacing: 0.5,
-    marginBottom: Space.s6,
+    fontFamily: Fonts.sansMedium,
+    fontSize: 13,
+    marginBottom: Space.s8,
   },
   textInput: {
     height: 44,
     borderRadius: Radius.control,
-    borderWidth: Hairline,
+    borderWidth: 1,
     paddingHorizontal: Space.s12,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
     fontFamily: Fonts.sans,
-    fontSize: 14,
+    fontSize: 15,
   },
   paymentMethodsRow: {
     flexDirection: 'row',
@@ -1044,7 +1200,8 @@ const styles = StyleSheet.create({
     gap: Space.s8,
   },
   dateChip: {
-    paddingVertical: Space.s8,
+    height: 44,
+    justifyContent: 'center',
     paddingHorizontal: Space.s12,
     borderRadius: Radius.control,
     borderWidth: Hairline,
@@ -1054,10 +1211,12 @@ const styles = StyleSheet.create({
   },
   dateInput: {
     flex: 1,
-    height: 38,
+    height: 44,
     borderRadius: Radius.control,
-    borderWidth: Hairline,
-    paddingHorizontal: Space.s10,
+    borderWidth: 1,
+    paddingHorizontal: Space.s12,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
     fontFamily: Fonts.mono,
     fontSize: 13,
   },
@@ -1170,5 +1329,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: Fonts.sansSemi,
     fontSize: 13,
+  },
+  mlHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.s6,
+    marginTop: Space.s8,
+    paddingHorizontal: Space.s10,
+    paddingVertical: Space.s8,
+    borderRadius: Radius.control,
+    borderWidth: 1,
+  },
+  mlHintText: {
+    flex: 1,
+    fontFamily: Fonts.sansMedium,
+    fontSize: 12,
+  },
+  mlApplyLabel: {
+    fontFamily: Fonts.sansSemi,
+    fontSize: 12,
   },
 });

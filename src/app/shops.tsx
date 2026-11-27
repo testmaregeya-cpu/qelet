@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -23,6 +22,10 @@ import { ShopManageModal } from '../components/ShopManageModal';
 import { ShopQuickActionsModal } from '../components/ShopQuickActionsModal';
 import { ShopRow } from '../components/ShopRow';
 import { calculateShopLedgerSummary, getAddisAbabaDateString } from '../domain/billing';
+import {
+  detectShopPriceAnomalies,
+  forecastHouseholdPaydayBill,
+} from '../domain/ml/ledgerMl';
 import { useHouseholdLedger } from '../hooks/useHouseholdLedger';
 import { triggerHaptic } from '../lib/haptics';
 import { formatEtb } from '../lib/money';
@@ -170,6 +173,16 @@ export default function ShopsScreen() {
     }
     return total;
   }, [shops, summariesByShop]);
+
+  const paydayForecast = useMemo(
+    () => forecastHouseholdPaydayBill({ entries, shops, todayDate }),
+    [entries, shops, todayDate]
+  );
+
+  const topPriceAlert = useMemo(() => {
+    const alerts = detectShopPriceAnomalies({ entries, shops });
+    return alerts.find((a) => a.direction === 'increase') ?? null;
+  }, [entries, shops]);
 
   const openShopDetail = useCallback((shop: Shop) => {
     router.push({ pathname: '/shop/[id]', params: { id: shop.id } });
@@ -362,6 +375,27 @@ export default function ShopsScreen() {
         </View>
 
         <PaydayWindowBar todayDate={todayDate} />
+
+        {(paydayForecast.additionalExpectedSantim > 0 || topPriceAlert) ? (
+          <View style={[styles.mlLedgerStrip, { borderTopColor: palette.border }]}>
+            {paydayForecast.additionalExpectedSantim > 0 ? (
+              <View style={styles.mlLedgerRow}>
+                <Text style={[styles.mlLedgerLabel, { color: palette.textSecondary }]}>
+                  Est. Day 24 payday bill
+                </Text>
+                <Text style={[styles.mlLedgerValue, { color: palette.textPrimary }]}>
+                  ~{formatEtb(paydayForecast.projectedPaydayTotalSantim)}
+                </Text>
+              </View>
+            ) : null}
+            {topPriceAlert ? (
+              <Text style={[styles.mlPriceAlertText, { color: palette.amber }]} numberOfLines={1}>
+                Price jump: {topPriceAlert.itemName} at {topPriceAlert.shopName} (+
+                {topPriceAlert.percentChange}%)
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
 
         {!partner ? (
           <View
@@ -698,7 +732,7 @@ export default function ShopsScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <FlatList
           data={loadingShops ? [] : filteredApprovedShops}
@@ -904,6 +938,33 @@ const styles = StyleSheet.create({
   },
   partnerText: {
     fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  mlLedgerStrip: {
+    borderTopWidth: Hairline,
+    paddingTop: Space.s10,
+    gap: Space.s4,
+  },
+  mlLedgerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Space.s8,
+  },
+  mlLedgerLabel: {
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  mlLedgerValue: {
+    fontFamily: Fonts.monoMedium,
+    fontSize: 13,
+    lineHeight: 16,
+    fontVariant: ['tabular-nums'],
+  },
+  mlPriceAlertText: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 12,
     lineHeight: 16,
   },

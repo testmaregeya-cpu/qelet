@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import { signOutAll } from '../services/auth';
 import { createHousehold, joinHouseholdByCode } from '../services/household';
 import { useSession } from '../state/SessionContext';
@@ -29,6 +29,7 @@ export default function LinkHouseholdScreen() {
   const [inviteCode, setInviteCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   if (!loading && !session) {
     return <Redirect href="/login" />;
@@ -73,9 +74,13 @@ export default function LinkHouseholdScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
           <View style={styles.headerBlock}>
             <Text style={[styles.kicker, { color: palette.primary }]}>Step 2 of 2</Text>
             <Text style={[styles.title, { color: palette.textPrimary }]}>
@@ -162,6 +167,7 @@ export default function LinkHouseholdScreen() {
                       },
                     ]}
                     value={householdName}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={setHouseholdName}
                     placeholder="Our Shop Tab"
                     placeholderTextColor={palette.textMuted}
@@ -182,6 +188,7 @@ export default function LinkHouseholdScreen() {
                       },
                     ]}
                     value={displayName}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={setDisplayName}
                     placeholder="Tensay"
                     placeholderTextColor={palette.textMuted}
@@ -230,6 +237,7 @@ export default function LinkHouseholdScreen() {
                       },
                     ]}
                     value={inviteCode}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={(text) => setInviteCode(text.toUpperCase())}
                     placeholder="A2B3C4"
                     placeholderTextColor={palette.textMuted}
@@ -252,6 +260,7 @@ export default function LinkHouseholdScreen() {
                       },
                     ]}
                     value={displayName}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={setDisplayName}
                     placeholder="Your first name"
                     placeholderTextColor={palette.textMuted}

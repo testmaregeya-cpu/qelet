@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Modal,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -533,8 +534,15 @@ export default function PlatformConsoleScreen() {
       </ScrollView>
 
       {/* Suspend User Confirmation Modal */}
-      <Modal visible={Boolean(banModalUser)} transparent animationType="fade" onRequestClose={() => setBanModalUser(null)}>
-        <View style={styles.modalOverlay}>
+      <Modal
+        visible={Boolean(banModalUser)}
+        transparent
+        statusBarTranslucent
+        navigationBarTranslucent
+        animationType="fade"
+        onRequestClose={() => setBanModalUser(null)}
+      >
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior="padding">
           <View style={[styles.modalContent, { backgroundColor: palette.surface, borderColor: palette.border }]}>
             <View style={styles.modalHeader}>
               <Feather name="alert-octagon" size={24} color={palette.danger} />
@@ -580,7 +588,7 @@ export default function PlatformConsoleScreen() {
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

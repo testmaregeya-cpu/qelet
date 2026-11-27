@@ -12,8 +12,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '../components/AppBottomNav';
-import { formatBillMonthLabel, getAddisAbabaDateString } from '../domain/billing';
+import {
+  formatBillMonthLabel,
+  getAddisAbabaDateString,
+  getStandardBillMonth,
+} from '../domain/billing';
 import { computeMonthlyInsights, getAvailableInsightMonths } from '../domain/insights';
+import { computeHouseholdMlReport } from '../domain/ml/ledgerMl';
 import { useHouseholdLedger } from '../hooks/useHouseholdLedger';
 import { formatEtb, formatQuantityMilli } from '../lib/money';
 import { isSuperAdmin } from '../lib/shopRules';
@@ -30,9 +35,10 @@ export default function InsightsScreen() {
 
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
+  const todayDate = getAddisAbabaDateString();
   const months = useMemo(
-    () => getAvailableInsightMonths(entries, getAddisAbabaDateString()),
-    [entries]
+    () => getAvailableInsightMonths(entries, todayDate),
+    [entries, todayDate]
   );
 
   const activeMonth = selectedMonth && months.includes(selectedMonth) ? selectedMonth : months[0];
@@ -41,6 +47,16 @@ export default function InsightsScreen() {
     if (!householdContext || !activeMonth) return null;
     return computeMonthlyInsights(entries, shops, householdContext.members, activeMonth);
   }, [entries, shops, householdContext, activeMonth]);
+
+  const mlReport = useMemo(() => {
+    if (!householdContext || !activeMonth) return null;
+    return computeHouseholdMlReport({
+      entries,
+      shops,
+      targetMonth: activeMonth,
+      todayDate,
+    });
+  }, [entries, shops, householdContext, activeMonth, todayDate]);
 
   if (!loading && !session) {
     return <Redirect href="/login" />;
@@ -188,6 +204,189 @@ export default function InsightsScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Smart Ledger Signals & Payday Forecast (On-Device ML) */}
+            {mlReport &&
+            ((activeMonth === getStandardBillMonth(todayDate) &&
+              mlReport.paydayForecast.projectedPaydayTotalSantim > 0) ||
+              mlReport.totalSpendAnomaly ||
+              mlReport.shopAnomalies.length > 0 ||
+              mlReport.priceAnomalies.length > 0 ||
+              mlReport.recurringShopItems.length > 0) ? (
+              <View style={styles.sectionBlock}>
+                <Text style={[styles.sectionTitle, { color: palette.textSecondary }]}>
+                  Smart ledger signals
+                </Text>
+
+                {activeMonth === getStandardBillMonth(todayDate) &&
+                mlReport.paydayForecast.projectedPaydayTotalSantim > 0 ? (
+                  <View
+                    style={[
+                      styles.card,
+                      { backgroundColor: palette.surface, borderColor: palette.border },
+                    ]}
+                  >
+                    <View style={styles.barHeader}>
+                      <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>
+                        Projected Day 24 settlement
+                      </Text>
+                      <Text style={[styles.shareMono, { color: palette.primary }]}>
+                        {mlReport.paydayForecast.inPaydayWindow
+                          ? 'Payday window'
+                          : `${mlReport.paydayForecast.daysUntilPaydayWindow}d until window`}
+                      </Text>
+                    </View>
+                    <Text style={[styles.summaryValue, { color: palette.textPrimary }]}>
+                      ~{formatEtb(mlReport.paydayForecast.projectedPaydayTotalSantim)}
+                    </Text>
+                    {mlReport.paydayForecast.additionalExpectedSantim > 0 ? (
+                      <Text style={[styles.subMeta, { color: palette.textMuted }]}>
+                        Current owed {formatEtb(mlReport.paydayForecast.currentOwedSantim)} ·
+                        Range {formatEtb(mlReport.paydayForecast.lowPaydayTotalSantim)}–
+                        {formatEtb(mlReport.paydayForecast.highPaydayTotalSantim)}
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                {(mlReport.totalSpendAnomaly || mlReport.shopAnomalies.length > 0) ? (
+                  <View
+                    style={[
+                      styles.card,
+                      { backgroundColor: palette.surface, borderColor: palette.border },
+                    ]}
+                  >
+                    {mlReport.totalSpendAnomaly ? (
+                      <View style={styles.signalRow}>
+                        <Text style={[styles.barLabel, { color: palette.textPrimary }]}>
+                          Monthly household spend{' '}
+                          {mlReport.totalSpendAnomaly.direction === 'spike' ? 'above' : 'below'}{' '}
+                          baseline ({formatEtb(mlReport.totalSpendAnomaly.baselineMean)} avg)
+                        </Text>
+                        <Text
+                          style={[
+                            styles.barValue,
+                            {
+                              color:
+                                mlReport.totalSpendAnomaly.direction === 'spike'
+                                  ? palette.danger
+                                  : palette.primary,
+                            },
+                          ]}
+                        >
+                          {mlReport.totalSpendAnomaly.percentDelta > 0 ? '+' : ''}
+                          {mlReport.totalSpendAnomaly.percentDelta}%
+                        </Text>
+                      </View>
+                    ) : null}
+                    {mlReport.shopAnomalies.map((sa) => (
+                      <View key={sa.shopId} style={styles.signalRow}>
+                        <Text style={[styles.barLabel, { color: palette.textPrimary }]}>
+                          {sa.shopName} ({formatEtb(sa.signal.baselineMean)} avg)
+                        </Text>
+                        <Text
+                          style={[
+                            styles.barValue,
+                            {
+                              color:
+                                sa.signal.direction === 'spike'
+                                  ? palette.amber
+                                  : palette.primary,
+                            },
+                          ]}
+                        >
+                          {sa.signal.percentDelta > 0 ? '+' : ''}
+                          {sa.signal.percentDelta}%
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {mlReport.priceAnomalies.length > 0 ? (
+                  <View
+                    style={[
+                      styles.card,
+                      { backgroundColor: palette.surface, borderColor: palette.border },
+                    ]}
+                  >
+                    <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>
+                      Shop price changes
+                    </Text>
+                    {mlReport.priceAnomalies.map((pa, idx) => (
+                      <View
+                        key={`${pa.shopId}-${pa.itemName}`}
+                        style={[
+                          styles.itemRow,
+                          idx < mlReport.priceAnomalies.length - 1 && {
+                            borderBottomWidth: 1,
+                            borderBottomColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1, gap: Space.s4 }}>
+                          <Text style={[styles.barLabel, { color: palette.textPrimary }]}>
+                            {pa.itemName} · {pa.shopName}
+                          </Text>
+                          <Text style={[styles.subMeta, { color: palette.textMuted }]}>
+                            {formatEtb(pa.previousMedianSantim)} → {formatEtb(pa.latestPriceSantim)} / {pa.unit}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.barValue,
+                            {
+                              color:
+                                pa.direction === 'increase' ? palette.danger : palette.primary,
+                            },
+                          ]}
+                        >
+                          {pa.percentChange > 0 ? '+' : ''}
+                          {pa.percentChange}%
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {mlReport.recurringShopItems.length > 0 ? (
+                  <View
+                    style={[
+                      styles.card,
+                      { backgroundColor: palette.surface, borderColor: palette.border },
+                    ]}
+                  >
+                    <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>
+                      Regular shop items
+                    </Text>
+                    {mlReport.recurringShopItems.map((item, idx) => (
+                      <View
+                        key={item.key}
+                        style={[
+                          styles.itemRow,
+                          idx < mlReport.recurringShopItems.length - 1 && {
+                            borderBottomWidth: 1,
+                            borderBottomColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <View style={{ flex: 1, gap: Space.s4 }}>
+                          <Text style={[styles.barLabel, { color: palette.textPrimary }]}>
+                            {item.label}
+                          </Text>
+                          <Text style={[styles.subMeta, { color: palette.textMuted }]}>
+                            {item.cadenceLabel} · Next ~{item.nextExpectedDate}
+                          </Text>
+                        </View>
+                        <Text style={[styles.barValue, { color: palette.textPrimary }]}>
+                          {formatEtb(item.typicalAmountSantim)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
 
             {/* Primary Chart: Spend by Shop */}
             <View style={styles.sectionBlock}>
@@ -547,6 +746,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontVariant: ['tabular-nums'],
+  },
+  signalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: Space.s12,
   },
   barTrack: {
     height: 6,

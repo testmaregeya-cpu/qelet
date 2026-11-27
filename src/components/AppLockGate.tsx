@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AppState,
   type AppStateStatus,
+  KeyboardAvoidingView,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -11,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { triggerHaptic } from '../lib/haptics';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import {
   attemptAppLockPinUnlock,
   getAppLockConfig,
@@ -30,7 +33,9 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [pinFocused, setPinFocused] = useState(false);
   const backgroundAtRef = useRef<number | null>(null);
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   const applyLockIfEnabled = useCallback(
     async (cfg: Awaited<ReturnType<typeof getAppLockConfig>>) => {
@@ -146,12 +151,18 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
       {children}
       {locked ? (
         <SafeAreaView style={[styles.overlay, { backgroundColor: palette.background }]}>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: palette.surface, borderColor: palette.border },
-            ]}
-          >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+            <ScrollView
+              ref={scrollRef}
+              contentContainerStyle={styles.scrollContent}
+              {...scrollViewHandlers}
+            >
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: palette.surface, borderColor: palette.border },
+                ]}
+              >
             <View style={styles.headingRow}>
               <View style={[styles.iconBox, { backgroundColor: palette.surfaceMuted }]}>
                 <Feather name="lock" size={18} color={palette.textPrimary} />
@@ -195,12 +206,18 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
                   style={[
                     styles.pinInput,
                     {
-                      borderColor: palette.borderStrong,
+                      borderColor: pinFocused ? palette.primary : palette.borderStrong,
+                      borderWidth: pinFocused ? 1.5 : 1,
                       color: palette.textPrimary,
                       backgroundColor: palette.background,
                     },
                   ]}
                   value={pinInput}
+                  onFocus={(e) => {
+                    setPinFocused(true);
+                    handleInputFocus(e.currentTarget);
+                  }}
+                  onBlur={() => setPinFocused(false)}
                   onChangeText={setPinInput}
                   keyboardType="number-pad"
                   secureTextEntry
@@ -233,7 +250,9 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
                 </Pressable>
               </View>
             ) : null}
-          </View>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       ) : null}
     </View>
@@ -248,6 +267,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     zIndex: 999,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: Space.s24,
   },

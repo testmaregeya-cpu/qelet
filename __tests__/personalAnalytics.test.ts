@@ -1,6 +1,7 @@
 import {
   computeMonthlyPersonalAnalytics,
   getAvailableExpenseMonths,
+  getExpensesForCategory,
 } from '../src/domain/personalAnalytics';
 import type { PersonalExpense } from '../src/types/personalExpense';
 
@@ -231,5 +232,15 @@ describe('Personal Analytics domain engine', () => {
     expect(gymSurge).toBeDefined();
     expect(gymSurge?.title).toBe('Gym & Fitness Spike');
     expect(gymSurge?.metric).toBe('+150%');
+    expect(gymSurge?.categoryKey).toBe('Gym & Fitness');
+  });
+
+  test('filters and sorts purchases for category drilldown cleanly', () => {
+    const mobilePurchases = getExpensesForCategory(sampleExpenses, 'MOBILE', '2026-11');
+    expect(mobilePurchases.map((e) => e.id)).toEqual(['nov-4', 'nov-3', 'nov-2', 'nov-1']);
+    expect(mobilePurchases.every((e) => e.category === 'mobile')).toBe(true);
+
+    const groceries = getExpensesForCategory(sampleExpenses, 'groceries', '2026-11');
+    expect(groceries).toHaveLength(0);
   });
 });

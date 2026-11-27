@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,15 +16,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppBottomNav } from '../components/AppBottomNav';
 import { LogExpenseModal } from '../components/LogExpenseModal';
+import { PersonalCategoryAnalysisCard } from '../components/PersonalCategoryAnalysisCard';
 import { PersonalExpenseRow } from '../components/PersonalExpenseRow';
 import {
   computeMonthlyPersonalAnalytics,
   getAvailableExpenseMonths,
+  getExpensesForCategory,
 } from '../domain/personalAnalytics';
 import { getAddisAbabaDateString } from '../domain/billing';
 import { triggerHaptic } from '../lib/haptics';
 import { formatEtb } from '../lib/money';
 import { isSuperAdmin } from '../lib/shopRules';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import {
   deletePersonalExpense,
   fetchPersonalCategories,
@@ -35,7 +39,6 @@ import { useTheme } from '../theme/ThemeContext';
 import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import {
   EXPENSE_CATEGORIES,
-  getCategoryMeta,
   PAYMENT_METHODS,
   type ExpenseCategoryKey,
   type PersonalCategory,
@@ -56,9 +59,13 @@ export default function ExpensesScreen() {
   const [activeTab, setActiveTab] = useState<'transactions' | 'analysis'>('transactions');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingExpense, setEditingExpense] = useState<PersonalExpense | null>(null);
+
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   const userId = session?.user?.id ?? null;
   const todayStr = useMemo(() => getAddisAbabaDateString(), []);
@@ -146,6 +153,22 @@ export default function ExpensesScreen() {
       ),
     [expenses, activeMonth, todayStr, customCategories]
   );
+
+  const visibleAnalysisCategories = useMemo(
+    () =>
+      analytics.categories.filter(
+        (cat) => cat.count > 0 || cat.lastMonthTotalSantim > 0
+      ),
+    [analytics.categories]
+  );
+
+  const toggleAnalysisCategory = useCallback((categoryKey: string) => {
+    triggerHaptic('selection');
+    setExpandedCategories((prev) => ({
+      ...prev,
+      [categoryKey]: !prev[categoryKey],
+    }));
+  }, []);
 
   const availableFilterCategories = useMemo(() => {
     const list: {
@@ -269,10 +292,13 @@ export default function ExpensesScreen() {
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: palette.background }]} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          {...scrollViewHandlers}
+        >
         {/* Screen Header */}
         <View style={styles.topHeader}>
           <View>
@@ -325,6 +351,7 @@ export default function ExpensesScreen() {
                 onPress={() => {
                   triggerHaptic('selection');
                   setSelectedMonth(ym);
+                  setExpandedCategories({});
                 }}
               >
                 <Text
@@ -421,6 +448,11 @@ export default function ExpensesScreen() {
               <Text style={[styles.heroMetricValue, { color: palette.textPrimary }]}>
                 {formatEtb(analytics.projectedMonthEndSantim)}
               </Text>
+              {analytics.forecast.remainingDays > 0 && analytics.totalSpentSantim > 0 ? (
+                <Text style={[styles.heroMetricSub, { color: palette.textMuted }]}>
+                  {formatEtb(analytics.forecast.lowTotalSantim)}–{formatEtb(analytics.forecast.highTotalSantim)}
+                </Text>
+              ) : null}
             </View>
 
             <View style={styles.heroMetricDivider} />
@@ -520,10 +552,19 @@ export default function ExpensesScreen() {
             <View
               style={[
                 styles.searchWrap,
-                { backgroundColor: palette.cardElevated, borderColor: palette.border },
+                {
+                  backgroundColor: palette.cardElevated,
+                  borderColor: searchFocused ? palette.primary : palette.borderStrong,
+                  borderWidth: searchFocused ? 1.5 : 1,
+                },
               ]}
             >
-              <Feather name="search" size={16} color={palette.textMuted} style={{ marginRight: 8 }} />
+              <Feather
+                name="search"
+                size={16}
+                color={searchFocused ? palette.primary : palette.textMuted}
+                style={{ marginRight: 8 }}
+              />
               <TextInput
                 testID="expense-search-input"
                 style={[styles.searchInput, { color: palette.textPrimary }]}
@@ -531,6 +572,12 @@ export default function ExpensesScreen() {
                 placeholderTextColor={palette.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
+                onFocus={(e) => {
+                  setSearchFocused(true);
+                  handleInputFocus(e.currentTarget);
+                }}
+                onBlur={() => setSearchFocused(false)}
+                returnKeyType="search"
               />
               {searchQuery ? (
                 <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
@@ -666,13 +713,28 @@ export default function ExpensesScreen() {
                 const isPos = insight.severity === 'positive';
                 const badgeBg = isAlert ? '#FEE2E2' : isPos ? '#DCFCE7' : '#E0F2FE';
                 const badgeColor = isAlert ? '#DC2626' : isPos ? '#16A34A' : '#0284C7';
+                const canDrill = Boolean(insight.categoryKey);
                 return (
-                  <View
+                  <Pressable
                     key={insight.id}
-                    style={[
+                    disabled={!canDrill}
+                    style={({ pressed }) => [
                       styles.insightCard,
-                      { backgroundColor: palette.cardElevated, borderColor: palette.border },
+                      {
+                        backgroundColor: palette.cardElevated,
+                        borderColor: palette.border,
+                        opacity: pressed && canDrill ? 0.85 : 1,
+                      },
                     ]}
+                    onPress={() => {
+                      if (insight.categoryKey) {
+                        triggerHaptic('selection');
+                        setExpandedCategories((prev) => ({
+                          ...prev,
+                          [insight.categoryKey!]: true,
+                        }));
+                      }
+                    }}
                   >
                     <View style={styles.insightHeader}>
                       <View style={[styles.insightBadge, { backgroundColor: badgeBg }]}>
@@ -680,6 +742,10 @@ export default function ExpensesScreen() {
                           name={
                             insight.type === 'surge'
                               ? 'alert-triangle'
+                              : insight.type === 'anomaly'
+                              ? 'trending-up'
+                              : insight.type === 'recurring'
+                              ? 'clock'
                               : insight.type === 'frequent'
                               ? 'repeat'
                               : insight.type === 'top_item'
@@ -705,96 +771,70 @@ export default function ExpensesScreen() {
                     <Text style={[styles.insightBody, { color: palette.textPrimary }]}>
                       {insight.body}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               })
             )}
 
             {/* Category Breakdown Progress */}
-            <Text style={[styles.sectionTitle, { color: palette.textPrimary, marginTop: Space.s20 }]}>
-              Where Your Money Went
-            </Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { color: palette.textPrimary }]}>
+                Where Your Money Went
+              </Text>
+              {visibleAnalysisCategories.length > 0 ? (
+                <Text style={[styles.sectionHint, { color: palette.textMuted }]}>
+                  Tap a category to see purchases
+                </Text>
+              ) : null}
+            </View>
 
-            {analytics.categories.length === 0 ? (
+            {visibleAnalysisCategories.length === 0 ? (
               <Text style={[styles.emptySubtitle, { color: palette.textMuted }]}>
-                No category data available yet.
+                No spending recorded in this month yet.
               </Text>
             ) : (
-              analytics.categories.map((cat) => {
-                const meta = getCategoryMeta(cat.category, customCategories);
-                return (
-                  <View
-                    key={cat.category}
-                    style={[
-                      styles.categoryCard,
-                      { backgroundColor: palette.cardElevated, borderColor: palette.border },
-                    ]}
-                  >
-                    <View style={styles.categoryCardTop}>
-                      <View style={styles.catLeft}>
-                        <View
-                          style={[
-                            styles.catIconWrap,
-                            { backgroundColor: cat.bgColor || meta.bgColor },
-                          ]}
-                        >
-                          <Feather
-                            name={cat.icon || meta.icon}
-                            size={15}
-                            color={cat.color || meta.color}
-                          />
-                        </View>
-                        <View>
-                          <Text style={[styles.catName, { color: palette.textPrimary }]}>
-                            {cat.label}
-                          </Text>
-                          <Text style={[styles.catSub, { color: palette.textMuted }]}>
-                            {cat.count} purchases • {cat.pctOfTotal}% of total
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.catRight}>
-                        <Text style={[styles.catAmount, { color: palette.textPrimary }]}>
-                          {formatEtb(cat.totalSantim)}
-                        </Text>
-                        {cat.changeFromLastMonthPct !== null && (
-                          <Text
-                            style={[
-                              styles.catDiff,
-                              {
-                                color:
-                                  cat.changeFromLastMonthPct > 0
-                                    ? '#DC2626'
-                                    : cat.changeFromLastMonthPct < 0
-                                    ? '#16A34A'
-                                    : palette.textMuted,
-                              },
-                            ]}
-                          >
-                            {cat.changeFromLastMonthPct > 0 ? '+' : ''}
-                            {cat.changeFromLastMonthPct.toFixed(0)}% MoM
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Progress Bar */}
-                    <View style={[styles.progressBarTrack, { backgroundColor: palette.surface }]}>
-                      <View
-                        style={[
-                          styles.progressBarFill,
-                          {
-                            width: `${Math.min(100, Math.max(4, cat.pctOfTotal))}%`,
-                            backgroundColor: cat.color || meta.color,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                );
-              })
+              visibleAnalysisCategories.map((cat) => (
+                <PersonalCategoryAnalysisCard
+                  key={cat.category}
+                  categoryStat={cat}
+                  purchases={getExpensesForCategory(currentMonthExpenses, cat.category)}
+                  customCategories={customCategories}
+                  expanded={Boolean(expandedCategories[cat.category])}
+                  onToggle={toggleAnalysisCategory}
+                  onPressPurchase={handleEditExpense}
+                />
+              ))
             )}
+
+            {analytics.recurringHabits.length > 0 ? (
+              <>
+                <Text style={[styles.sectionTitle, { color: palette.textPrimary, marginTop: Space.s20 }]}>
+                  Detected Recurring Habits
+                </Text>
+                <View style={[styles.pmOverviewCard, { backgroundColor: palette.cardElevated, borderColor: palette.border }]}>
+                  {analytics.recurringHabits.map((habit) => (
+                    <View key={habit.key} style={styles.pmRow}>
+                      <View style={{ flex: 1, marginRight: Space.s8 }}>
+                        <Text style={[styles.pmName, { color: palette.textPrimary }]} numberOfLines={1}>
+                          {habit.label}
+                        </Text>
+                        <Text style={[styles.habitSub, { color: palette.textMuted }]}>
+                          {habit.cadenceLabel} · Next ~{habit.nextExpectedDate}
+                        </Text>
+                      </View>
+                      <View style={styles.pmRight}>
+                        <Text style={[styles.pmTotal, { color: palette.textPrimary }]}>
+                          {formatEtb(habit.typicalAmountSantim)}
+                        </Text>
+                        <Text style={[styles.pmPct, { color: palette.textMuted }]}>
+                          (~{formatEtb(habit.estimatedMonthlySantim)}/mo)
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : null}
 
             {/* Payment Methods Breakdown */}
             <Text style={[styles.sectionTitle, { color: palette.textPrimary, marginTop: Space.s20 }]}>
@@ -827,7 +867,8 @@ export default function ExpensesScreen() {
             </View>
           </View>
         )}
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Log / Edit Expense Bottom Sheet Modal */}
       <LogExpenseModal
@@ -840,6 +881,7 @@ export default function ExpensesScreen() {
         userId={session.user.id}
         initialExpense={editingExpense}
         customCategories={customCategories}
+        expenseHistory={expenses}
         onCategoryCreated={(newCat) => {
           setCustomCategories((prev) => [
             ...prev.filter(
@@ -987,6 +1029,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
+  heroMetricSub: {
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  habitSub: {
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    marginTop: 2,
+  },
   heroMetricDivider: {
     width: Hairline,
     height: 24,
@@ -1031,14 +1084,17 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 42,
+    height: 44,
     borderRadius: Radius.control,
-    borderWidth: Hairline,
+    borderWidth: 1,
     paddingHorizontal: Space.s12,
     marginBottom: Space.s10,
   },
   searchInput: {
     flex: 1,
+    height: '100%',
+    paddingVertical: 0,
+    textAlignVertical: 'center',
     fontFamily: Fonts.sans,
     fontSize: 14,
   },
@@ -1088,6 +1144,17 @@ const styles = StyleSheet.create({
   analysisWrap: {
     gap: Space.s10,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    marginTop: Space.s20,
+    marginBottom: Space.s4,
+  },
+  sectionHint: {
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+  },
   sectionTitle: {
     fontFamily: Fonts.sansSemi,
     fontSize: 15,
@@ -1124,62 +1191,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
-  },
-  categoryCard: {
-    padding: Space.s12,
-    borderRadius: Radius.card,
-    borderWidth: Hairline,
-    marginBottom: Space.s6,
-  },
-  categoryCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Space.s8,
-  },
-  catLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.s10,
-    flex: 1,
-  },
-  catIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.tag,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  catName: {
-    fontFamily: Fonts.sansSemi,
-    fontSize: 14,
-  },
-  catSub: {
-    fontFamily: Fonts.sans,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  catRight: {
-    alignItems: 'flex-end',
-  },
-  catAmount: {
-    fontFamily: Fonts.sansSemi,
-    fontSize: 14,
-    fontVariant: ['tabular-nums'],
-  },
-  catDiff: {
-    fontFamily: Fonts.sansMedium,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  progressBarTrack: {
-    height: 6,
-    borderRadius: Radius.pill,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: Radius.pill,
   },
   pmOverviewCard: {
     padding: Space.s14,

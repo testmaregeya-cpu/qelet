@@ -4,7 +4,6 @@ import React, { type ComponentRef, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import {
   isGoogleSignInConfigured,
   signInWithEmail,
@@ -35,6 +35,7 @@ export default function LoginScreen() {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const passwordInputRef = useRef<ComponentRef<typeof TextInput> | null>(null);
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   if (!configured) {
     return <Redirect href="/" />;
@@ -84,9 +85,13 @@ export default function LoginScreen() {
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
           {/* Calm product mark + ledger identity */}
           <View style={styles.brandBlock}>
             <View style={styles.logoRow}>
@@ -221,6 +226,7 @@ export default function LoginScreen() {
                   },
                 ]}
                 value={email}
+                onFocus={(e) => handleInputFocus(e.currentTarget)}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
                 placeholderTextColor={palette.textMuted}
@@ -249,6 +255,7 @@ export default function LoginScreen() {
                   ref={passwordInputRef}
                   style={[styles.passwordInput, { color: palette.textPrimary }]}
                   value={password}
+                  onFocus={(e) => handleInputFocus(e.currentTarget)}
                   onChangeText={setPassword}
                   placeholder="At least 6 characters"
                   placeholderTextColor={palette.textMuted}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PersonalCategoryAnalysisCard } from '../src/components/PersonalCategoryAnalysisCard';
 import { PersonalExpenseRow } from '../src/components/PersonalExpenseRow';
 import { LogExpenseModal } from '../src/components/LogExpenseModal';
 import type { PersonalExpense, PersonalCategory } from '../src/types/personalExpense';
@@ -8,6 +9,7 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 jest.mock('@expo/vector-icons', () => ({ Feather: 'Feather' }));
+jest.mock('@expo/vector-icons/Feather', () => 'Feather');
 
 jest.mock('../src/lib/haptics', () => ({
   triggerHaptic: jest.fn(),
@@ -29,6 +31,7 @@ jest.mock('../src/theme/ThemeContext', () => ({
       primaryButtonBg: '#146C43',
       primaryButtonText: '#FFFFFF',
       cardElevated: '#FFFFFF',
+      danger: '#B42318',
     },
     isDark: false,
   }),
@@ -137,5 +140,98 @@ describe('Personal Expense UI Components', () => {
     );
     expect(modal).toBeDefined();
     expect(modal.props.customCategories?.[0].name).toBe('Gym');
+  });
+
+  it('shows purchases inline when a Deep Analysis category card is expanded and handles clicks', () => {
+    interface ElementProps {
+      testID?: string;
+      children?: React.ReactNode;
+      onPress?: () => void;
+    }
+    const findByTestId = (
+      node: unknown,
+      testID: string
+    ): React.ReactElement<ElementProps> | null => {
+      if (!node || typeof node !== 'object') return null;
+      if (Array.isArray(node)) {
+        for (const child of node) {
+          const hit = findByTestId(child, testID);
+          if (hit) return hit;
+        }
+        return null;
+      }
+      const el = node as React.ReactElement<ElementProps>;
+      if (el.props?.testID === testID) return el;
+      if (el.props?.children) {
+        return findByTestId(el.props.children, testID);
+      }
+      return null;
+    };
+
+    const groceryPurchases: PersonalExpense[] = [
+      {
+        ...sampleExpense,
+        id: 'groc-1',
+        category: 'groceries',
+        title: 'Milk and Eggs',
+        amount_santim: 25000,
+        expense_date: '2026-05-19',
+      },
+      {
+        ...sampleExpense,
+        id: 'groc-2',
+        category: 'groceries',
+        title: 'Fresh Vegetables',
+        amount_santim: 18000,
+        expense_date: '2026-05-18',
+      },
+    ];
+
+    const categoryStat = {
+      category: 'groceries',
+      label: 'Groceries',
+      icon: 'shopping-bag' as const,
+      color: '#16A34A',
+      bgColor: '#DCFCE7',
+      totalSantim: 43000,
+      count: 2,
+      pctOfTotal: 55,
+      changeFromLastMonthPct: 12,
+      lastMonthTotalSantim: 38000,
+    };
+
+    const onToggle = jest.fn();
+    const onPressPurchase = jest.fn();
+
+    const collapsedTree = PersonalCategoryAnalysisCard({
+      categoryStat,
+      purchases: groceryPurchases,
+      expanded: false,
+      onToggle,
+      onPressPurchase,
+    });
+
+    expect(findByTestId(collapsedTree, 'analysis-category-purchases-groceries')).toBeNull();
+    const toggleBtn = findByTestId(collapsedTree, 'analysis-category-toggle-groceries');
+    expect(toggleBtn).not.toBeNull();
+    toggleBtn?.props.onPress?.();
+    expect(onToggle).toHaveBeenCalledWith('groceries');
+
+    const expandedTree = PersonalCategoryAnalysisCard({
+      categoryStat,
+      purchases: groceryPurchases,
+      expanded: true,
+      onToggle,
+      onPressPurchase,
+    });
+
+    expect(findByTestId(expandedTree, 'analysis-category-purchases-groceries')).not.toBeNull();
+    const firstPurchase = findByTestId(expandedTree, 'analysis-purchase-row-groc-1');
+    const secondPurchase = findByTestId(expandedTree, 'analysis-purchase-row-groc-2');
+    expect(firstPurchase).not.toBeNull();
+    expect(secondPurchase).not.toBeNull();
+
+    firstPurchase?.props.onPress?.();
+    expect(onPressPurchase).toHaveBeenCalledWith(groceryPurchases[0]);
   });
 });

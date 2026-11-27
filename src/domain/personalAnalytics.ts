@@ -2,6 +2,12 @@ import type Feather from '@expo/vector-icons/Feather';
 import { formatBillMonthLabel, getAddisAbabaDateString, shiftYearMonth } from './billing';
 import { formatEtb } from '../lib/money';
 import {
+  computePersonalMlInsights,
+  formatPersonalAnomalySummary,
+  type CategoryBaselineAnomaly,
+} from './ml/personalMl';
+import type { PeriodForecast, RecurringPattern } from './ml/timeSeriesAndAnomalies';
+import {
   EXPENSE_CATEGORIES,
   getCategoryMeta,
   type PersonalCategory,
@@ -23,11 +29,38 @@ export interface MonthlyCategoryStats {
 
 export interface SpendingInsight {
   id: string;
-  type: 'surge' | 'frequent' | 'top_item' | 'pace' | 'saving' | 'pattern';
+  type: 'surge' | 'frequent' | 'top_item' | 'pace' | 'saving' | 'pattern' | 'anomaly' | 'recurring';
   severity: 'alert' | 'info' | 'positive';
   title: string;
   body: string;
   metric?: string;
+  categoryKey?: string;
+}
+
+/**
+ * Returns expenses matching a category key (case-insensitive), optionally filtered to a YYYY-MM month,
+ * ordered most recent date first and highest amount second for clean category drilldown.
+ */
+export function getExpensesForCategory(
+  expenses: readonly PersonalExpense[],
+  categoryKey: string,
+  targetMonth?: string
+): PersonalExpense[] {
+  const needle = categoryKey.trim().toLowerCase();
+  return expenses
+    .filter((exp) => {
+      if (targetMonth && !exp.expense_date?.startsWith(targetMonth)) {
+        return false;
+      }
+      return exp.category.trim().toLowerCase() === needle;
+    })
+    .sort((a, b) => {
+      const dateCmp = b.expense_date.localeCompare(a.expense_date);
+      if (dateCmp !== 0) return dateCmp;
+      const amountCmp = b.amount_santim - a.amount_santim;
+      if (amountCmp !== 0) return amountCmp;
+      return b.created_at.localeCompare(a.created_at);
+    });
 }
 
 export interface PersonalMonthlyAnalytics {
@@ -40,6 +73,9 @@ export interface PersonalMonthlyAnalytics {
   expenseCount: number;
   dailyAverageSantim: number;
   projectedMonthEndSantim: number;
+  forecast: PeriodForecast;
+  anomalies: CategoryBaselineAnomaly[];
+  recurringHabits: RecurringPattern[];
   categories: MonthlyCategoryStats[];
   topCategory: MonthlyCategoryStats | null;
   topExpense: PersonalExpense | null;
@@ -112,7 +148,15 @@ export function computeMonthlyPersonalAnalytics(
 
   const dailyAverageSantim =
     daysElapsed > 0 ? Math.round(totalSpentSantim / daysElapsed) : 0;
-  const projectedMonthEndSantim = dailyAverageSantim * totalDaysInMonth;
+
+  const mlSummary = computePersonalMlInsights({
+    expenses,
+    targetMonth,
+    todayDate,
+    elapsedDays: daysElapsed,
+    customCategories,
+  });
+  const projectedMonthEndSantim = mlSummary.forecast.projectedTotalSantim;
 
   // Previous month category maps
   const prevCategoryTotals = new Map<string, number>();
@@ -232,6 +276,7 @@ export function computeMonthlyPersonalAnalytics(
         title: `${cat.label} Spike`,
         body: `You spent ${formatEtb(cat.totalSantim)} on ${cat.label}, up ${cat.changeFromLastMonthPct}% from last month.`,
         metric: `+${cat.changeFromLastMonthPct}%`,
+        categoryKey: cat.category,
       });
     }
   }
@@ -246,6 +291,7 @@ export function computeMonthlyPersonalAnalytics(
       title: 'Frequent Mobile Card Buys',
       body: `You bought mobile cards/data ${mobileCat.count} times this month (${formatEtb(mobileCat.totalSantim)} total).`,
       metric: `${mobileCat.count}x`,
+      categoryKey: mobileCat.category,
     });
   }
 
@@ -258,6 +304,7 @@ export function computeMonthlyPersonalAnalytics(
       title: 'Regular Taxi & Rides',
       body: `You took ${transportCat.count} rides this month totaling ${formatEtb(transportCat.totalSantim)}.`,
       metric: `${transportCat.count} rides`,
+      categoryKey: transportCat.category,
     });
   }
 
@@ -270,6 +317,7 @@ export function computeMonthlyPersonalAnalytics(
       title: 'Coffee & Snacks Habit',
       body: `Logged coffee and quick snacks ${coffeeCat.count} times (${formatEtb(coffeeCat.totalSantim)}).`,
       metric: `${coffeeCat.count}x`,
+      categoryKey: coffeeCat.category,
     });
   }
 
@@ -287,6 +335,7 @@ export function computeMonthlyPersonalAnalytics(
         title: `Regular ${cat.label}`,
         body: `Logged ${cat.label} ${cat.count} times this month (${formatEtb(cat.totalSantim)} total).`,
         metric: `${cat.count}x`,
+        categoryKey: cat.category,
       });
     }
   }
@@ -306,6 +355,7 @@ export function computeMonthlyPersonalAnalytics(
       title: 'Largest Single Expense',
       body: `"${topExpense.title}" (${formatEtb(topExpense.amount_santim)}) took up ${splurgePct}% of this month's budget.`,
       metric: `${splurgePct}%`,
+      categoryKey: topExpense.category,
     });
   }
 
@@ -349,6 +399,35 @@ export function computeMonthlyPersonalAnalytics(
     }
   }
 
+  // 6. Learned Multi-Month Baseline Anomalies (Z-score)
+  for (const anomaly of mlSummary.anomalies.slice(0, 2)) {
+    insights.push({
+      id: `ml-anomaly-${anomaly.category}`,
+      type: 'anomaly',
+      severity: anomaly.signal.direction === 'spike' ? 'alert' : 'positive',
+      title:
+        anomaly.signal.direction === 'spike'
+          ? `${anomaly.label} Above Baseline`
+          : `${anomaly.label} Below Baseline`,
+      body: formatPersonalAnomalySummary(anomaly),
+      metric: `${anomaly.signal.zScore > 0 ? '+' : ''}${anomaly.signal.zScore}σ`,
+      categoryKey: anomaly.category,
+    });
+  }
+
+  // 7. Due-Soon Recurring Habit Alert
+  const dueSoonHabit = mlSummary.recurringHabits.find((h) => h.isDueSoon);
+  if (dueSoonHabit) {
+    insights.push({
+      id: `ml-recurring-${dueSoonHabit.key}`,
+      type: 'recurring',
+      severity: 'info',
+      title: `Expected Soon: ${dueSoonHabit.label}`,
+      body: `${dueSoonHabit.cadenceLabel} habit (~${formatEtb(dueSoonHabit.typicalAmountSantim)} each, ~${formatEtb(dueSoonHabit.estimatedMonthlySantim)}/mo). Expected around ${dueSoonHabit.nextExpectedDate}.`,
+      metric: dueSoonHabit.cadenceLabel,
+    });
+  }
+
   return {
     currentMonth: targetMonth,
     previousMonth,
@@ -359,6 +438,9 @@ export function computeMonthlyPersonalAnalytics(
     expenseCount: currentExpenses.length,
     dailyAverageSantim,
     projectedMonthEndSantim,
+    forecast: mlSummary.forecast,
+    anomalies: mlSummary.anomalies,
+    recurringHabits: mlSummary.recurringHabits,
     categories,
     topCategory,
     topExpense,

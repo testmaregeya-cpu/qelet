@@ -1,17 +1,21 @@
 import Feather from '@expo/vector-icons/Feather';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  computeKeyboardSheetStyle,
+  useKeyboardAwareScroll,
+  useSafeAreaInsetsSafe,
+} from '../lib/useKeyboardInset';
 import { useTheme } from '../theme/ThemeContext';
 import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 import type { Shop } from '../types/phase1';
@@ -46,10 +50,26 @@ function ShopManageModalContent({
   onMerge,
 }: Omit<ShopManageModalProps, 'shop'> & { shop: Shop }) {
   const { palette } = useTheme();
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsetsSafe();
+  const { height: windowHeight } = useWindowDimensions();
+  const { scrollRef, keyboardHeight, handleInputFocus, scrollViewHandlers } =
+    useKeyboardAwareScroll();
   const [nameInput, setNameInput] = useState(shop.name);
+  const [nameFocused, setNameFocused] = useState(false);
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const sheetLayout = useMemo(
+    () =>
+      computeKeyboardSheetStyle(
+        keyboardHeight,
+        windowHeight,
+        insets.top,
+        insets.bottom,
+        0.84
+      ),
+    [keyboardHeight, windowHeight, insets.top, insets.bottom]
+  );
 
   const isMerged = shop.merged_into_shop_id !== null;
   const availableTargets = mergeTargets.filter(
@@ -80,10 +100,17 @@ function ShopManageModalContent({
   };
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible
+      animationType="slide"
+      transparent
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
         <View
           style={[
@@ -91,7 +118,8 @@ function ShopManageModalContent({
             {
               backgroundColor: palette.surface,
               borderTopColor: palette.border,
-              paddingBottom: Math.max(Space.s24, insets.bottom + Space.s12),
+              maxHeight: sheetLayout.maxHeight,
+              paddingBottom: sheetLayout.paddingBottom,
             },
           ]}
         >
@@ -111,7 +139,11 @@ function ShopManageModalContent({
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.content}
+            {...scrollViewHandlers}
+          >
             {localError ? (
               <View style={[styles.errorBox, { backgroundColor: palette.dangerLight }]}>
                 <Text style={[styles.errorText, { color: palette.danger }]}>{localError}</Text>
@@ -150,12 +182,18 @@ function ShopManageModalContent({
                         styles.input,
                         {
                           flex: 1,
-                          borderColor: palette.border,
+                          borderColor: nameFocused ? palette.primary : palette.borderStrong,
+                          borderWidth: nameFocused ? 1.5 : 1,
                           color: palette.textPrimary,
                           backgroundColor: palette.background,
                         },
                       ]}
                       value={nameInput}
+                      onFocus={(e) => {
+                        setNameFocused(true);
+                        handleInputFocus(e.currentTarget);
+                      }}
+                      onBlur={() => setNameFocused(false)}
                       onChangeText={setNameInput}
                       editable={!busy}
                       placeholder="Shop name"
@@ -291,7 +329,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: Radius.sheet,
     borderTopRightRadius: Radius.sheet,
     borderTopWidth: Hairline,
-    maxHeight: '84%',
     paddingHorizontal: Space.s20,
     paddingTop: Space.s12,
   },
@@ -336,9 +373,11 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 44,
-    borderWidth: Hairline,
+    borderWidth: 1,
     borderRadius: Radius.control,
     paddingHorizontal: Space.s12,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
     fontFamily: Fonts.sans,
     fontSize: 15,
   },

@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../../lib/useKeyboardInset';
 import { ChargeLinesEditor } from '../../components/ChargeLinesEditor';
 import { DateStepperInput } from '../../components/DateStepperInput';
 import { LedgerHeader } from '../../components/LedgerHeader';
@@ -56,6 +56,7 @@ export default function EditEntryScreen() {
   const entryId = Array.isArray(id) ? id[0] : id;
 
   const { loading, session, householdContext } = useSession();
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
   const [entry, setEntry] = useState<LedgerEntry | null>(null);
   const [priceMemory, setPriceMemory] = useState<PriceMemoryItem[]>([]);
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -214,9 +215,13 @@ export default function EditEntryScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: palette.dangerLight }]}>
               <Feather name="alert-circle" size={16} color={palette.danger} />
@@ -308,6 +313,7 @@ export default function EditEntryScreen() {
                       },
                     ]}
                     value={amountEtb}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={setAmountEtb}
                     accessibilityLabel="Payment amount in ETB"
                     keyboardType="decimal-pad"
@@ -323,6 +329,7 @@ export default function EditEntryScreen() {
                   onAddLine={() =>
                     setLines((prev) => [...prev, makeEmptyEditableLine(prev.length)])
                   }
+                  onInputFocus={handleInputFocus}
                 />
               )}
 
@@ -346,6 +353,7 @@ export default function EditEntryScreen() {
                     },
                   ]}
                   value={note}
+                  onFocus={(e) => handleInputFocus(e.currentTarget)}
                   onChangeText={setNote}
                   accessibilityLabel="Receipt note"
                   placeholder="Receipt note"

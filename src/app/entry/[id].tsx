@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -27,6 +26,7 @@ import {
 import { triggerHaptic } from '../../lib/haptics';
 import { formatEtb, formatQuantityMilli } from '../../lib/money';
 import { findMember } from '../../lib/shopRules';
+import { useKeyboardAwareScroll } from '../../lib/useKeyboardInset';
 import {
   fetchEntryDetail,
   fetchEntryHistory,
@@ -68,6 +68,7 @@ export default function EntryDetailScreen() {
   const [voidReason, setVoidReason] = useState('');
 
   const householdId = householdContext?.household.id ?? null;
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
 
   const loadDetail = useCallback(async () => {
     if (!householdId || !entryId) return;
@@ -219,11 +220,12 @@ export default function EntryDetailScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
+          {...scrollViewHandlers}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -421,6 +423,7 @@ export default function EntryDetailScreen() {
                           },
                         ]}
                         value={resolutionNote}
+                        onFocus={(e) => handleInputFocus(e.currentTarget)}
                         onChangeText={setResolutionNote}
                         placeholder="Resolution note"
                         placeholderTextColor={palette.textMuted}
@@ -485,6 +488,7 @@ export default function EntryDetailScreen() {
                           },
                         ]}
                         value={disputeNote}
+                        onFocus={(e) => handleInputFocus(e.currentTarget)}
                         onChangeText={setDisputeNote}
                         placeholder="e.g. Milk was 90 ETB, or wrong shop"
                         placeholderTextColor={palette.textMuted}
@@ -592,12 +596,14 @@ export default function EntryDetailScreen() {
       <Modal
         visible={showVoidModal}
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         animationType="slide"
         onRequestClose={() => setShowVoidModal(false)}
       >
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior="padding"
         >
           <View
             style={[

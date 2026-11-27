@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useKeyboardAwareScroll } from '../lib/useKeyboardInset';
 import { DateStepperInput } from '../components/DateStepperInput';
 import { CreateShopModal } from '../components/CreateShopModal';
 import { LedgerHeader } from '../components/LedgerHeader';
@@ -49,6 +49,7 @@ export default function RecordPaymentScreen() {
   const initialParamShopId = Array.isArray(paramShopId) ? paramShopId[0] : paramShopId;
 
   const { loading, session, householdContext } = useSession();
+  const { scrollRef, handleInputFocus, scrollViewHandlers } = useKeyboardAwareScroll();
   const [shops, setShops] = useState<Shop[]>([]);
   const [selectedShopId, setSelectedShopId] = useState<string>(initialParamShopId ?? '');
   const [showCreateShopModal, setShowCreateShopModal] = useState(false);
@@ -259,9 +260,13 @@ export default function RecordPaymentScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          {...scrollViewHandlers}
+        >
           {error ? (
             <View style={[styles.errorBox, { backgroundColor: palette.dangerLight }]}>
               <Feather name="alert-circle" size={16} color={palette.danger} />
@@ -432,6 +437,7 @@ export default function RecordPaymentScreen() {
                         { color: palette.textPrimary },
                       ]}
                       value={amountEtb}
+                      onFocus={(e) => handleInputFocus(e.currentTarget)}
                       onChangeText={setAmountEtb}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
@@ -548,6 +554,7 @@ export default function RecordPaymentScreen() {
                       },
                     ]}
                     value={note}
+                    onFocus={(e) => handleInputFocus(e.currentTarget)}
                     onChangeText={setNote}
                     placeholder="Cash or Telebirr"
                     placeholderTextColor={palette.textMuted}
