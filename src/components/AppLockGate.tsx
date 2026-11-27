@@ -15,6 +15,7 @@ import {
   attemptAppLockPinUnlock,
   getAppLockConfig,
   getRemainingPinLockoutSeconds,
+  isBiometricActive,
   promptBiometricUnlock,
 } from '../services/appLock';
 import { useTheme } from '../theme/ThemeContext';
@@ -22,6 +23,7 @@ import { Fonts, Radius, Space } from '../theme/tokens';
 
 export function AppLockGate({ children }: { children: React.ReactNode }) {
   const { palette } = useTheme();
+  const [initialized, setInitialized] = useState(false);
   const [locked, setLocked] = useState(false);
   const [hasPin, setHasPin] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(true);
@@ -36,9 +38,11 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
       setBioEnabled(cfg.biometricEnabled);
       if (!cfg.enabled) {
         setLocked(false);
+        setInitialized(true);
         return;
       }
       setLocked(true);
+      setInitialized(true);
       setPinInput('');
       setPinError(null);
       setLockoutSeconds(await getRemainingPinLockoutSeconds());
@@ -70,6 +74,11 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
     });
 
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (isBiometricActive()) {
+        // Biometric prompt is active on Android; ignore this system transition
+        return;
+      }
+
       if (nextState === 'background' || nextState === 'inactive') {
         if (backgroundAtRef.current === null) {
           backgroundAtRef.current = Date.now();
@@ -127,6 +136,10 @@ export function AppLockGate({ children }: { children: React.ReactNode }) {
       setPinError('Fingerprint check did not match');
     }
   };
+
+  if (!initialized) {
+    return <View style={{ flex: 1, backgroundColor: palette.background }} />;
+  }
 
   return (
     <View style={{ flex: 1 }}>

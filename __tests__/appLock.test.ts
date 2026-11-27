@@ -35,10 +35,15 @@ jest.mock('expo-local-authentication', () => ({
 }));
 
 import * as Crypto from 'expo-crypto';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {
   attemptAppLockPinUnlock,
+  canUseBiometrics,
   getAppLockConfig,
+  isBiometricActive,
+  promptBiometricUnlock,
   setAppLockPin,
+  setAppLockPreferences,
   verifyAppLockPin,
 } from '../src/services/appLock';
 
@@ -86,5 +91,28 @@ describe('appLock service security hardening', () => {
     const afterCooldown = await attemptAppLockPinUnlock('1357', baseTime + 60_000);
     expect(afterCooldown.unlocked).toBe(true);
     expect(afterCooldown.lockedOutSeconds).toBe(0);
+  });
+
+  test('defaults timeoutSeconds to 0 and configures biometric unlock safely', async () => {
+    (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
+    (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
+    (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({ success: true });
+
+    expect(await canUseBiometrics()).toBe(true);
+
+    const cfg = await getAppLockConfig();
+    expect(cfg.timeoutSeconds).toBe(0);
+    expect(cfg.enabled).toBe(true); // Automatically enabled when device has enrolled biometrics
+    expect(cfg.biometricEnabled).toBe(true);
+
+    expect(isBiometricActive()).toBe(false);
+    const unlockPromise = promptBiometricUnlock();
+    expect(await unlockPromise).toBe(true);
+    expect(LocalAuthentication.authenticateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        promptMessage: 'Unlock Qelet',
+        cancelLabel: 'Cancel',
+      })
+    );
   });
 });

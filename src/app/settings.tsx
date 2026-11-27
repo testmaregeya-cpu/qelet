@@ -184,8 +184,8 @@ export default function SettingsScreen() {
   const handleToggleLock = async (nextEnabled: boolean) => {
     setError(null);
     setStatusMessage(null);
-    if (nextEnabled && !lockConfig.hasPin) {
-      setError('Set a 4-digit PIN below before enabling App lock.');
+    if (nextEnabled && !lockConfig.hasPin && !biometricsAvailable) {
+      setError('Set a 4-digit PIN below or use fingerprint to enable lock.');
       return;
     }
     await setAppLockPreferences({ enabled: nextEnabled });
@@ -578,7 +578,11 @@ export default function SettingsScreen() {
               <View style={{ flex: 1, gap: Space.s4 }}>
                 <Text style={[styles.rowTitle, { color: palette.textPrimary }]}>Enable lock</Text>
                 <Text style={[styles.rowSub, { color: palette.textMuted }]}>
-                  {lockConfig.hasPin ? 'Fallback PIN configured' : 'Set a 4-digit PIN first'}
+                  {lockConfig.hasPin
+                    ? 'Protected with PIN & Fingerprint'
+                    : biometricsAvailable
+                    ? 'Protected with Fingerprint'
+                    : 'Set a 4-digit PIN below'}
                 </Text>
               </View>
               <Switch

@@ -47,20 +47,40 @@ async function hashPinV2(pin: string, salt: string): Promise<string> {
   return `${HASH_V2_PREFIX}${acc}`;
 }
 
+let inFlightAuthPromise: Promise<boolean> | null = null;
+let isBiometricPromptActive = false;
+
+export function isBiometricActive(): boolean {
+  return isBiometricPromptActive;
+}
+
 export async function getAppLockConfig(): Promise<AppLockConfig> {
-  const [enabledRaw, bioRaw, timeoutRaw, pinHash] = await Promise.all([
+  const [enabledRaw, bioRaw, timeoutRaw, pinHash, bioAvailable] = await Promise.all([
     SecureStore.getItemAsync(KEY_ENABLED),
     SecureStore.getItemAsync(KEY_BIOMETRIC),
     SecureStore.getItemAsync(KEY_TIMEOUT_SEC),
     SecureStore.getItemAsync(KEY_PIN_HASH),
+    canUseBiometrics(),
   ]);
 
-  const parsedTimeout = Number.parseInt(timeoutRaw ?? '60', 10);
+  const hasPin = Boolean(pinHash);
+  let enabled = false;
+  if (enabledRaw === 'true') {
+    enabled = true;
+  } else if (enabledRaw === 'false') {
+    enabled = false;
+  } else {
+    // Default to true if biometrics or PIN is available
+    enabled = bioAvailable || hasPin;
+  }
+
+  // Default to 0 (Immediately on background/close)
+  const parsedTimeout = Number.parseInt(timeoutRaw ?? '0', 10);
   return {
-    enabled: enabledRaw === 'true',
-    biometricEnabled: bioRaw !== 'false',
-    hasPin: Boolean(pinHash),
-    timeoutSeconds: Number.isFinite(parsedTimeout) ? parsedTimeout : 60,
+    enabled,
+    biometricEnabled: bioRaw !== 'false' && bioAvailable,
+    hasPin,
+    timeoutSeconds: Number.isFinite(parsedTimeout) ? parsedTimeout : 0,
   };
 }
 
@@ -202,20 +222,37 @@ export async function canUseBiometrics(): Promise<boolean> {
 }
 
 export async function promptBiometricUnlock(): Promise<boolean> {
-  try {
-    const available = await canUseBiometrics();
-    if (!available) return false;
-
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Unlock Qelet',
-      fallbackLabel: 'Use PIN',
-      disableDeviceFallback: false,
-    });
-    if (result.success) {
-      await clearLockoutState();
-    }
-    return result.success;
-  } catch {
-    return false;
+  if (inFlightAuthPromise) {
+    return inFlightAuthPromise;
   }
+
+  inFlightAuthPromise = (async () => {
+    try {
+      const available = await canUseBiometrics();
+      if (!available) return false;
+
+      isBiometricPromptActive = true;
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock Qelet',
+        cancelLabel: 'Cancel',
+        fallbackLabel: 'Use PIN',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        await clearLockoutState();
+      }
+      return result.success;
+    } catch {
+      return false;
+    } finally {
+      // Delay clearing active flag so the Android AppState active transition is absorbed
+      setTimeout(() => {
+        isBiometricPromptActive = false;
+      }, 600);
+      inFlightAuthPromise = null;
+    }
+  })();
+
+  return inFlightAuthPromise;
 }
