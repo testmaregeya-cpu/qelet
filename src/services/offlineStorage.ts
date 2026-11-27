@@ -100,3 +100,36 @@ export async function getCachedShopDetail(
     return null;
   }
 }
+
+const PERSONAL_EXPENSES_CACHE_PREFIX = 'qelet_personal_expenses_v1_';
+
+export async function cachePersonalExpenses<T = unknown>(
+  userId: string,
+  expenses: T[]
+): Promise<void> {
+  try {
+    await AsyncStorage.setItem(`${PERSONAL_EXPENSES_CACHE_PREFIX}${userId}`, JSON.stringify(expenses));
+  } catch {
+    // Non-fatal if storage full
+  }
+}
+
+export async function getCachedPersonalExpenses<T = unknown>(
+  userId: string
+): Promise<T[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(`${PERSONAL_EXPENSES_CACHE_PREFIX}${userId}`);
+    return raw ? (JSON.parse(raw) as T[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearCachedPersonalExpenses(userId: string): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(`${PERSONAL_EXPENSES_CACHE_PREFIX}${userId}`);
+  } catch {
+    // Non-fatal
+  }
+}
+

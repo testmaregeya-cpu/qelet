@@ -71,6 +71,7 @@ function AppShell() {
         <Stack.Screen name="login" />
         <Stack.Screen name="link-household" />
         <Stack.Screen name="shops" />
+        <Stack.Screen name="expenses" />
         <Stack.Screen name="insights" />
         <Stack.Screen name="admin" />
         <Stack.Screen name="settings" />

@@ -7,7 +7,7 @@ import { triggerHaptic } from '../lib/haptics';
 import { useTheme } from '../theme/ThemeContext';
 import { Fonts, Hairline, Radius, Space } from '../theme/tokens';
 
-export type NavTab = 'home' | 'insights' | 'admin' | 'settings';
+export type NavTab = 'home' | 'expenses' | 'insights' | 'admin' | 'settings';
 
 interface AppBottomNavProps {
   active: NavTab;
@@ -21,10 +21,11 @@ export function AppBottomNav({ active, isSuperAdmin }: AppBottomNavProps) {
   const tabs: {
     key: NavTab;
     label: string;
-    href: '/shops' | '/insights' | '/admin' | '/settings';
+    href: '/shops' | '/expenses' | '/insights' | '/admin' | '/settings';
     icon: keyof typeof Feather.glyphMap;
   }[] = [
     { key: 'home', label: 'Ledger', href: '/shops', icon: 'book-open' },
+    { key: 'expenses', label: 'Personal', href: '/expenses', icon: 'credit-card' },
     { key: 'insights', label: 'Insights', href: '/insights', icon: 'bar-chart-2' },
     ...(isSuperAdmin
       ? [

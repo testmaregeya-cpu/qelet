@@ -18,6 +18,8 @@ import {
   flushOfflineMutations,
   type OfflineMutation,
 } from '../services/offlineQueue';
+import { syncPersonalExpensesQueue } from '../services/personalExpenses';
+
 import {
   cacheHouseholdContext,
   clearCachedHouseholdContext,
@@ -132,6 +134,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           await cacheHouseholdContext(ctx);
           void syncDevicePreferences(activeSession.user.id, ctx.household.id);
           void flushOfflineMutations(ctx.household.id, executeOfflineMutation).catch(() => undefined);
+          void syncPersonalExpensesQueue(activeSession.user.id).catch(() => undefined);
         }
       } catch (err) {
         const cached = await getCachedHouseholdContext();

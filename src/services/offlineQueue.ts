@@ -3,6 +3,7 @@ import * as Crypto from 'expo-crypto';
 import type { ChargeLineDraft, LedgerEntry } from '../types/phase2';
 
 const OFFLINE_QUEUE_KEY = 'qelet_offline_mutations_v1';
+const PERSONAL_EXPENSES_QUEUE_KEY = 'qelet_personal_expenses_queue_v1';
 
 export interface OfflineChargePayload {
   shopId: string;
@@ -19,6 +20,25 @@ export interface OfflinePaymentPayload {
   amountSantim: number;
   note: string;
   clientRequestId: string;
+}
+
+export interface OfflinePersonalExpensePayload {
+  userId: string;
+  amountSantim: number;
+  category: string;
+  title: string;
+  note?: string;
+  expenseDate: string;
+  paymentMethod: string;
+  clientRequestId: string;
+}
+
+export interface OfflinePersonalExpenseMutation {
+  id: string;
+  userId: string;
+  createdAt: string;
+  lastError?: string;
+  payload: OfflinePersonalExpensePayload;
 }
 
 export type OfflineMutation =
@@ -114,6 +134,93 @@ async function writeAllQueue(items: OfflineMutation[]): Promise<void> {
 export async function getOfflineMutations(householdId?: string): Promise<OfflineMutation[]> {
   const items = await readAllQueue();
   return householdId ? items.filter((item) => item.householdId === householdId) : items;
+}
+
+async function readPersonalQueue(): Promise<OfflinePersonalExpenseMutation[]> {
+  const raw = await AsyncStorage.getItem(PERSONAL_EXPENSES_QUEUE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as OfflinePersonalExpenseMutation[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writePersonalQueue(items: OfflinePersonalExpenseMutation[]): Promise<void> {
+  if (items.length === 0) {
+    await AsyncStorage.removeItem(PERSONAL_EXPENSES_QUEUE_KEY);
+    return;
+  }
+  await AsyncStorage.setItem(PERSONAL_EXPENSES_QUEUE_KEY, JSON.stringify(items));
+}
+
+export async function getOfflinePersonalExpenses(
+  userId?: string
+): Promise<OfflinePersonalExpenseMutation[]> {
+  const items = await readPersonalQueue();
+  return userId ? items.filter((item) => item.userId === userId) : items;
+}
+
+export async function enqueueOfflinePersonalExpense(
+  mutation: OfflinePersonalExpenseMutation
+): Promise<void> {
+  const existing = await readPersonalQueue();
+  if (existing.some((item) => item.id === mutation.id)) {
+    return;
+  }
+  existing.push(mutation);
+  await writePersonalQueue(existing);
+}
+
+export async function flushOfflinePersonalExpenses(
+  userId: string,
+  executor: (mutation: OfflinePersonalExpenseMutation) => Promise<void>
+): Promise<FlushResult> {
+  const all = await readPersonalQueue();
+  const targetItems = all.filter((item) => item.userId === userId);
+  if (targetItems.length === 0) {
+    return { syncedCount: 0, remainingCount: 0, lastError: null };
+  }
+
+  let syncedCount = 0;
+  let lastError: string | null = null;
+  const completedIds = new Set<string>();
+  const errorById = new Map<string, string>();
+
+  for (const item of targetItems) {
+    try {
+      await executor(item);
+      completedIds.add(item.id);
+      syncedCount += 1;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sync failed';
+      if (isLikelyNetworkError(err)) {
+        lastError = null;
+        break;
+      }
+      lastError = msg;
+      errorById.set(item.id, msg);
+    }
+  }
+
+  const remaining = all
+    .filter((item) => !completedIds.has(item.id))
+    .map((item) =>
+      errorById.has(item.id)
+        ? { ...item, lastError: errorById.get(item.id) }
+        : item
+    );
+
+  await writePersonalQueue(remaining);
+
+  const remainingForUser = remaining.filter((item) => item.userId === userId).length;
+
+  return {
+    syncedCount,
+    remainingCount: remainingForUser,
+    lastError,
+  };
 }
 
 export async function enqueueOfflineMutation(mutation: OfflineMutation): Promise<void> {
